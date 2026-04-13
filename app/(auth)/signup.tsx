@@ -1,0 +1,287 @@
+/**
+ * twae — Sign Up Screen
+ * Uses refs to chain field focus — no more focus-stealing on mobile
+ */
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Modal,
+  Animated,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
+import AppInput from '../../components/atoms/AppInput';
+import AppButton from '../../components/atoms/AppButton';
+import { Colors, Radii } from '../../constants/theme';
+
+const countries = [
+  { code: 'NG', dialCode: '+234', name: 'Nigeria', flag: '🇳🇬' },
+  { code: 'US', dialCode: '+1', name: 'United States', flag: '🇺🇸' },
+  { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'GH', dialCode: '+233', name: 'Ghana', flag: '🇬🇭' },
+  { code: 'KE', dialCode: '+254', name: 'Kenya', flag: '🇰🇪' },
+];
+
+export default function SignupScreen() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [strength, setStrength] = useState(0);
+
+  const [country, setCountry] = useState(countries[0]);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+
+  // Refs for field chaining
+  const emailRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const password2Ref = useRef<TextInput>(null);
+
+  // Fade-in animation
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+  }, []);
+
+  const checkStrength = (val: string) => {
+    let score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    setStrength(score);
+    setPassword(val);
+  };
+
+  const strengthColors = ['transparent', Colors.red, '#f0c040', Colors.greenBright, Colors.greenBright];
+
+  const handleSignup = () => {
+    const errs: Record<string, string> = {};
+    if (!name) errs.name = 'Enter your full name';
+    if (!email.includes('@')) errs.email = 'Enter a valid email';
+    if (phone.length < 5) errs.phone = 'Enter a valid phone number';
+    if (password.length < 8) errs.password = 'Min 8 characters';
+    if (password !== password2) errs.password2 = 'Passwords do not match';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      router.replace('/(tabs)');
+    }, 2200);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <Animated.View style={{ opacity }}>
+          {/* Decorative accent dots */}
+          <View style={styles.decoRow}>
+            <View style={[styles.decoDot, { backgroundColor: Colors.red }]} />
+            <View style={[styles.decoDot, { backgroundColor: Colors.gold2 }]} />
+            <View style={[styles.decoDot, { backgroundColor: Colors.greenBright }]} />
+            <View style={[styles.decoDot, { backgroundColor: Colors.skyDark }]} />
+          </View>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoRow}>
+              <LinearGradient colors={[Colors.g2, Colors.gsheen]} style={styles.logoGem}>
+                <Svg width={22} height={22} viewBox="0 0 22 22" fill="none">
+                  <Path d="M11 2L18 7V15L11 20L4 15V7L11 2Z" fill="white" opacity={0.9} />
+                </Svg>
+              </LinearGradient>
+              <Text style={styles.logoText}>twae</Text>
+            </View>
+            <Text style={styles.title}>Create your{'\n'}account.</Text>
+            <Text style={styles.subtitle}>Start building wealth today</Text>
+          </View>
+
+          {/* Form */}
+          <View style={styles.form}>
+            <AppInput
+              label="Full name"
+              value={name}
+              onChangeText={setName}
+              placeholder="Adaugo Okonkwo"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => emailRef.current?.focus()}
+              error={errors.name}
+            />
+
+            <AppInput
+              ref={emailRef}
+              label="Email address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => phoneRef.current?.focus()}
+              error={errors.email}
+            />
+
+            {/* Country + Phone Row */}
+            <Text style={styles.label}>Phone number</Text>
+            <View style={styles.phoneRow}>
+              <TouchableOpacity
+                style={styles.countryBtn}
+                onPress={() => setShowCountryPicker(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.countryFlag}>{country.flag}</Text>
+                <Text style={styles.countryDial}>{country.dialCode}</Text>
+                <Ionicons name="chevron-down" size={14} color={Colors.dim} />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <AppInput
+                  ref={phoneRef}
+                  label=""
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="803 456 7890"
+                  keyboardType="phone-pad"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  error={errors.phone}
+                />
+              </View>
+            </View>
+
+            <AppInput
+              ref={passwordRef}
+              label="Password"
+              value={password}
+              onChangeText={checkStrength}
+              placeholder="Min. 8 characters"
+              secureTextEntry
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => password2Ref.current?.focus()}
+              error={errors.password}
+            />
+            <View style={styles.strengthBar}>
+              {[0, 1, 2, 3].map(i => (
+                <View
+                  key={i}
+                  style={[
+                    styles.strengthSeg,
+                    i < strength && { backgroundColor: strengthColors[strength] },
+                  ]}
+                />
+              ))}
+            </View>
+
+            <AppInput
+              ref={password2Ref}
+              label="Confirm password"
+              value={password2}
+              onChangeText={setPassword2}
+              placeholder="Re-enter password"
+              secureTextEntry
+              returnKeyType="done"
+              onSubmitEditing={handleSignup}
+              error={errors.password2}
+            />
+
+            <AppButton
+              label="Create Account"
+              onPress={handleSignup}
+              loading={loading}
+              style={{ marginTop: 8 }}
+            />
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Text style={styles.switchLink}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Country Picker Modal */}
+      <Modal visible={showCountryPicker} animationType="slide" transparent>
+        <View style={styles.modalBg}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Country</Text>
+              <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {countries.map(c => (
+                <TouchableOpacity
+                  key={c.code}
+                  style={styles.countryItem}
+                  onPress={() => { setCountry(c); setShowCountryPicker(false); }}
+                >
+                  <Text style={styles.countryItemFlag}>{c.flag}</Text>
+                  <Text style={styles.countryItemName}>{c.name}</Text>
+                  <Text style={styles.countryItemCode}>{c.dialCode}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.bg },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  decoRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 24, paddingTop: 12 },
+  decoDot: { width: 6, height: 6, borderRadius: 3 },
+  header: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 20 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 36 },
+  logoGem: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  logoText: { fontFamily: 'BricolageGrotesque_600', fontSize: 20, color: Colors.text },
+  title: { fontFamily: 'BricolageGrotesque_600', fontSize: 30, color: Colors.text, lineHeight: 38, marginBottom: 8 },
+  subtitle: { fontFamily: 'Inter_400', fontSize: 14, color: Colors.muted },
+  form: { paddingHorizontal: 24 },
+  label: { fontFamily: 'Inter_500', fontSize: 12, color: Colors.muted, marginBottom: 7, letterSpacing: 0.5, textTransform: 'uppercase' },
+  phoneRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  countryBtn: { flexDirection: 'row', alignItems: 'center', height: 52, borderRadius: Radii.sm, backgroundColor: Colors.surface, paddingHorizontal: 12, borderWidth: 1.5, borderColor: Colors.blackAlpha04, gap: 6 },
+  countryFlag: { fontSize: 18 },
+  countryDial: { fontFamily: 'Inter_500', fontSize: 14, color: Colors.text },
+  strengthBar: { flexDirection: 'row', gap: 4, marginTop: -8, marginBottom: 16 },
+  strengthSeg: { flex: 1, height: 3, borderRadius: 3, backgroundColor: Colors.blackAlpha05 },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
+  switchText: { fontFamily: 'Inter_400', fontSize: 14, color: Colors.muted },
+  switchLink: { fontFamily: 'Inter_500', fontSize: 14, color: Colors.gsheen },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 20, color: Colors.text },
+  countryItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.blackAlpha04 },
+  countryItemFlag: { fontSize: 24, marginRight: 12 },
+  countryItemName: { flex: 1, fontFamily: 'Inter_500', fontSize: 16, color: Colors.text },
+  countryItemCode: { fontFamily: 'Inter_400', fontSize: 14, color: Colors.dim },
+});
