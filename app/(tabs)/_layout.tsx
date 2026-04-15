@@ -1,19 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
-import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  TouchableOpacity,
+  Animated,
+  Text,
+} from 'react-native';
 import { LayoutGrid, ArrowLeftRight, BarChart2, CircleUser } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  useAnimatedStyle,
-  withSpring,
-  useSharedValue,
-  withTiming,
-  interpolateColor,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SvgXml } from 'react-native-svg';
 
 const TAB_CONFIG = [
   { name: 'index',        label: 'Home',     Icon: LayoutGrid     },
@@ -30,99 +29,66 @@ const THEME = {
   action:     '#0052f5',
 };
 
-const SPRING = { damping: 15, stiffness: 140, mass: 1 };
-
-// SVG glass-distortion filter — injected as an invisible overlay
-const GLASS_FILTER_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute">
-  <defs>
-    <filter
-      id="glass-distortion"
-      x="0%" y="0%" width="100%" height="100%"
-      filterUnits="objectBoundingBox"
-    >
-      <feTurbulence
-        type="fractalNoise"
-        baseFrequency="0.01 0.01"
-        numOctaves="1"
-        seed="5"
-        result="turbulence"
-      />
-      <feComponentTransfer in="turbulence" result="mapped">
-        <feFuncR type="gamma" amplitude="1" exponent="10" offset="0.5" />
-        <feFuncG type="gamma" amplitude="0" exponent="1"  offset="0"   />
-        <feFuncB type="gamma" amplitude="0" exponent="1"  offset="0.5" />
-      </feComponentTransfer>
-      <feGaussianBlur in="turbulence" stdDeviation="3" result="softMap" />
-      <feSpecularLighting
-        in="softMap"
-        surfaceScale="5"
-        specularConstant="1"
-        specularExponent="100"
-        lighting-color="white"
-        result="specLight"
-      >
-        <fePointLight x="-200" y="-200" z="300" />
-      </feSpecularLighting>
-      <feComposite
-        in="specLight"
-        operator="arithmetic"
-        k1="0" k2="1" k3="1" k4="0"
-        result="litImage"
-      />
-      <feDisplacementMap
-        in="SourceGraphic"
-        in2="softMap"
-        scale="150"
-        xChannelSelector="R"
-        yChannelSelector="G"
-      />
-    </filter>
-  </defs>
-</svg>
-`;
+const SPRING_CONFIG = {
+  tension: 140,
+  friction: 15,
+  useNativeDriver: false,
+};
 
 const TabItem = ({ tab, isFocused, onPress }: any) => {
   const { Icon } = tab;
 
-  const expandWidth = useSharedValue(isFocused ? 1 : 0);
-  const opacityText = useSharedValue(isFocused ? 1 : 0);
-  const scaleIcon   = useSharedValue(isFocused ? 1.1 : 1);
-  const [isReady, setIsReady] = useState(false);
+  const expandAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const opacityAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
+  const scaleAnim = useRef(new Animated.Value(isFocused ? 1.1 : 1)).current;
 
   useEffect(() => {
-    setIsReady(true);
-    expandWidth.value = withSpring(isFocused ? 1 : 0, SPRING);
-    opacityText.value = withTiming(isFocused ? 1 : 0, { duration: 200 });
-    scaleIcon.value   = withSpring(isFocused ? 1.1 : 1, SPRING);
+    Animated.parallel([
+      Animated.spring(expandAnim, {
+        toValue: isFocused ? 1 : 0,
+        ...SPRING_CONFIG,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: isFocused ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: isFocused ? 1.1 : 1,
+        ...SPRING_CONFIG,
+      }),
+    ]).start();
   }, [isFocused]);
 
-  const animatedContainer = useAnimatedStyle(() => ({
-    flex: 1 + expandWidth.value * 1.5,
-    backgroundColor: interpolateColor(
-      expandWidth.value,
-      [0, 1],
-      ['transparent', THEME.pillActive]
-    ),
-  }));
+  // flex: 1 + expandAnim * 1.5
+  const animatedFlex = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.5],
+  });
 
-  const animatedText = useAnimatedStyle(() => ({
-    opacity: opacityText.value,
-    transform: [{ translateX: withSpring(isFocused ? 0 : -10, SPRING) }],
-    width: expandWidth.value > 0.05 ? 'auto' : 0,
-    marginLeft: expandWidth.value * 6,
-  }));
+  const animatedBg = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['transparent', THEME.pillActive],
+  });
 
-  const animatedIcon = useAnimatedStyle(() => ({
-    transform: [{ scale: scaleIcon.value }],
-  }));
+  const animatedTranslateX = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-10, 0],
+  });
+
+  const animatedMarginLeft = expandAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 6],
+  });
 
   return (
     <Animated.View
       style={[
         styles.tabItemContainer,
-        animatedContainer,
-        !isReady && { flex: isFocused ? 2.5 : 1 },
+        {
+          flex: animatedFlex,
+          backgroundColor: animatedBg,
+        },
       ]}
     >
       {/* Liquid glass tint layer */}
@@ -135,7 +101,7 @@ const TabItem = ({ tab, isFocused, onPress }: any) => {
         <View style={styles.liquidGlassShine} pointerEvents="none" />
       )}
 
-      {/* Gradient sheen (replaces old LinearGradient) */}
+      {/* Gradient sheen */}
       {isFocused && (
         <LinearGradient
           colors={['rgba(255,255,255,0.25)', 'transparent', 'rgba(0,0,0,0.1)']}
@@ -157,7 +123,7 @@ const TabItem = ({ tab, isFocused, onPress }: any) => {
         style={styles.tabItemInner}
         activeOpacity={1}
       >
-        <Animated.View style={animatedIcon}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
           <Icon
             size={22}
             color={isFocused ? THEME.action : THEME.content}
@@ -166,7 +132,17 @@ const TabItem = ({ tab, isFocused, onPress }: any) => {
         </Animated.View>
 
         {isFocused && (
-          <Animated.Text style={[styles.tabLabel, animatedText]} numberOfLines={1}>
+          <Animated.Text
+            style={[
+              styles.tabLabel,
+              {
+                opacity: opacityAnim,
+                transform: [{ translateX: animatedTranslateX }],
+                marginLeft: animatedMarginLeft,
+              },
+            ]}
+            numberOfLines={1}
+          >
             {tab.label}
           </Animated.Text>
         )}
@@ -185,14 +161,9 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : 24 },
       ]}
     >
-      {/* Hidden SVG filter definition — needed for glass-distortion on web/RN Web */}
-      <View style={styles.svgFilterHost} pointerEvents="none">
-        <SvgXml xml={GLASS_FILTER_SVG} width={0} height={0} />
-      </View>
-
       {/* Liquid glass wrapper */}
       <View style={styles.liquidGlassWrapper}>
-        {/* Glass effect layer: blur + distortion */}
+        {/* Glass effect layer: blur */}
         <BlurView
           intensity={3}
           tint="light"
@@ -205,7 +176,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         {/* Shine bevel */}
         <View style={[StyleSheet.absoluteFillObject, styles.liquidGlassShineOuter]} pointerEvents="none" />
 
-        {/* Existing gradient overlay */}
+        {/* Gradient overlay */}
         <LinearGradient
           colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']}
           locations={[0, 0.3, 1]}
@@ -259,15 +230,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  /* ── SVG filter host (invisible, just provides the filter def) ── */
-  svgFilterHost: {
-    position: 'absolute',
-    width: 0,
-    height: 0,
-    zIndex: -1,
-    overflow: 'hidden',
-  },
-
   /* ── Outer container ── */
   tabBarOuter: {
     position: 'absolute',
@@ -278,7 +240,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 
-  /* ── Liquid glass wrapper (replaces blurWrap) ── */
+  /* ── Liquid glass wrapper ── */
   liquidGlassWrapper: {
     position: 'relative',
     width: '90%',
@@ -287,13 +249,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
     display: 'flex',
-    // matches .liquidGlass-wrapper box-shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 10,
-    // bevel border
     borderWidth: 1,
     borderTopColor:    'rgba(255,255,255,0.9)',
     borderRightColor:  'rgba(255,255,255,0.5)',
