@@ -1,118 +1,161 @@
 /**
  * twae — Tab Layout
- * Premium floating glass tab bar with animated indicators
- * Uses React Native built-in Animated API — no moti/reanimated dependency
+ * Ultra-Premium LIQUID GLASS expanding pill bottom bar.
+ * Built with react-native-reanimated, expo-blur, and expo-linear-gradient.
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, Dimensions } from 'react-native';
 import { Home, Receipt, TrendingUp, User } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Radii, Shadows } from '../../constants/theme';
-
-const { width } = Dimensions.get('window');
-const TAB_BAR_WIDTH = width - 48;
-const TAB_COUNT = 4;
-const TAB_WIDTH = TAB_BAR_WIDTH / TAB_COUNT;
+import Animated, { 
+  useAnimatedStyle, 
+  withSpring, 
+  useSharedValue, 
+  withTiming, 
+  interpolateColor
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '../../constants/theme';
 
 const TAB_CONFIG = [
   { name: 'index', label: 'Home', Icon: Home },
-  { name: 'transactions', label: 'History', Icon: Receipt },
+  { name: 'transactions', label: 'Activity', Icon: Receipt },
   { name: 'invest', label: 'Invest', Icon: TrendingUp },
   { name: 'profile', label: 'Profile', Icon: User },
 ];
 
-function CustomTabBar({ state, descriptors, navigation }: any) {
-  const indicatorX = useRef(new Animated.Value(state.index * TAB_WIDTH)).current;
-  const iconScales = useRef(TAB_CONFIG.map(() => new Animated.Value(1))).current;
-  const labelOpacities = useRef(TAB_CONFIG.map((_, i) =>
-    new Animated.Value(state.index === i ? 1 : 0)
-  )).current;
+/**
+ * Liquid physics: Slightly lower damping for a more organic, fluid "slosh" into place
+ */
+const SPRING_CONFIG = {
+  damping: 14,
+  stiffness: 130,
+  mass: 1,
+};
+
+const TabItem = ({ tab, isFocused, onPress }: any) => {
+  const IconComponent = tab.Icon;
+  
+  // Shared values for the expanding liquid effect
+  const expandWidth = useSharedValue(isFocused ? 1 : 0);
+  const opacityText = useSharedValue(isFocused ? 1 : 0);
+  const scaleIcon = useSharedValue(isFocused ? 1.05 : 1);
+
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Slide the indicator
-    Animated.spring(indicatorX, {
-      toValue: state.index * TAB_WIDTH,
-      tension: 68,
-      friction: 12,
-      useNativeDriver: true,
-    }).start();
+    setIsReady(true);
+    expandWidth.value = withSpring(isFocused ? 1 : 0, SPRING_CONFIG);
+    opacityText.value = withTiming(isFocused ? 1 : 0, { duration: 250 });
+    scaleIcon.value = withSpring(isFocused ? 1.08 : 1, SPRING_CONFIG);
+  }, [isFocused]);
 
-    // Animate icons & labels
-    TAB_CONFIG.forEach((_, i) => {
-      const isFocused = state.index === i;
-      Animated.parallel([
-        Animated.spring(iconScales[i], {
-          toValue: isFocused ? 1.15 : 1,
-          tension: 100,
-          friction: 10,
-          useNativeDriver: true,
-        }),
-        Animated.timing(labelOpacities[i], {
-          toValue: isFocused ? 1 : 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
-  }, [state.index]);
+  const animatedContainerStyle = useAnimatedStyle(() => {
+    // Flex expands organically from 1 to 2.5
+    const flexVal = 1 + (expandWidth.value * 1.5);
+    return {
+      flex: flexVal,
+      backgroundColor: interpolateColor(
+        expandWidth.value,
+        [0, 1],
+        ['transparent', 'rgba(255, 255, 255, 0.15)'] // Soft white overlay within the glass to simulate illumination
+      ),
+    };
+  });
+
+  const animatedTextStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacityText.value,
+      transform: [{ translateX: withSpring(isFocused ? 0 : -10, SPRING_CONFIG) }],
+      width: expandWidth.value > 0.05 ? 'auto' : 0,
+      marginLeft: expandWidth.value * 6,
+    };
+  });
+
+  const animatedIconStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scaleIcon.value }],
+    };
+  });
 
   return (
-    <View style={styles.tabBarOuter}>
-      <View style={styles.tabBar}>
-        {/* Sliding Indicator */}
-        <Animated.View style={[styles.indicatorWrap, { transform: [{ translateX: indicatorX }] }]}>
-          <LinearGradient
-            colors={[Colors.g2, Colors.g3]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.indicator}
+    <Animated.View style={[styles.tabItemContainer, animatedContainerStyle, !isReady && { flex: isFocused ? 2.5 : 1 }]}>
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityState={isFocused ? { selected: true } : {}}
+        onPress={() => {
+          if (!isFocused) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            onPress();
+          }
+        }}
+        style={styles.tabItemInner}
+        activeOpacity={1}
+      >
+        <Animated.View style={animatedIconStyle}>
+          <IconComponent
+            size={22}
+            color={isFocused ? Colors.primary : Colors.muted}
+            strokeWidth={isFocused ? 2.5 : 2}
           />
         </Animated.View>
+        
+        {isFocused && (
+           <Animated.Text
+             style={[styles.tabLabel, animatedTextStyle]}
+             numberOfLines={1}
+             ellipsizeMode="clip"
+           >
+             {tab.label}
+           </Animated.Text>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
-        {state.routes.map((route: any, index: number) => {
-          const tab = TAB_CONFIG[index];
-          const isFocused = state.index === index;
+function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  
+  return (
+    <View style={[styles.tabBarOuter, { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : 24 }]}>
+      <BlurView intensity={65} tint="dark" style={styles.blurWrap}>
+        
+        {/* LIQUID GLASS GLOSSY HIGHLIGHT OVERLAY */}
+        <LinearGradient 
+          colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.02)', 'transparent']}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+        />
 
-          const onPress = () => {
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
-            }
-          };
+        <View style={styles.tabBarInner}>
+          {state.routes.map((route: any, index: number) => {
+            const tab = TAB_CONFIG[index];
+            const isFocused = state.index === index;
 
-          const IconComponent = tab.Icon;
+            const onPress = () => {
+              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!isFocused && !event.defaultPrevented) {
+                navigation.navigate(route.name);
+              }
+            };
 
-          return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={isFocused ? { selected: true } : {}}
-              onPress={onPress}
-              style={styles.tabItem}
-              activeOpacity={0.8}
-            >
-              <Animated.View style={{ transform: [{ scale: iconScales[index] }] }}>
-                <IconComponent
-                  size={20}
-                  color={isFocused ? '#ffffff' : Colors.muted}
-                  strokeWidth={isFocused ? 2.5 : 2}
-                />
-              </Animated.View>
-              <Animated.Text
-                style={[
-                  styles.tabLabel,
-                  { opacity: labelOpacities[index] },
-                  isFocused && { color: '#ffffff' },
-                ]}
-                numberOfLines={1}
-              >
-                {tab.label}
-              </Animated.Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+            return (
+              <TabItem 
+                key={route.key} 
+                tab={tab} 
+                isFocused={isFocused} 
+                onPress={onPress} 
+              />
+            );
+          })}
+        </View>
+      </BlurView>
     </View>
   );
 }
@@ -137,50 +180,52 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    backgroundColor: 'transparent',
+    
+    // Ambient drop shadow for the liquid glass casing
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 20,
   },
-  tabBar: {
+  blurWrap: {
+    borderRadius: 32, // More pill-like organic outer shape
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    // Glass edge highlights mimicking light refraction
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',  
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  tabBarInner: {
     width: '100%',
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
+    height: 72, // Slightly taller for breathing room
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(50,100,209,.1)',
-    ...Shadows.card,
-    shadowColor: 'rgba(50,100,209,.2)',
-  },
-  indicatorWrap: {
-    position: 'absolute',
-    width: TAB_WIDTH,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 8,
     paddingVertical: 8,
-    paddingHorizontal: 6,
   },
-  indicator: {
+  tabItemContainer: {
+    height: '100%',
+    borderRadius: 24, // Inner pill curves organically within the outer pill
+    overflow: 'hidden',
+    marginHorizontal: 4,
+  },
+  tabItemInner: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
-    opacity: 0.95,
-  },
-  tabItem: {
-    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
-    zIndex: 2,
-    gap: 3,
   },
   tabLabel: {
     fontFamily: 'BricolageGrotesque_600',
-    fontSize: 9,
-    color: Colors.muted,
+    fontSize: 14,
+    color: Colors.primary,
     letterSpacing: 0.3,
+    includeFontPadding: false,
   },
 });
