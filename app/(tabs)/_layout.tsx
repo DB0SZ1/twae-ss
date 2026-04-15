@@ -6,13 +6,19 @@ import {
   Platform,
   TouchableOpacity,
   Animated,
-  Text,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { LayoutGrid, ArrowLeftRight, BarChart2, CircleUser } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const TAB_CONFIG = [
   { name: 'index',        label: 'Home',     Icon: LayoutGrid     },
@@ -22,90 +28,73 @@ const TAB_CONFIG = [
 ];
 
 const THEME = {
-  glass:      'rgba(187, 187, 188, 0.12)',
   pillActive: 'rgba(187, 187, 188, 0.36)',
-  tint:       'rgba(255, 255, 255, 0.50)',
   content:    '#222244',
   action:     '#0052f5',
 };
 
-const SPRING_CONFIG = {
-  tension: 140,
-  friction: 15,
-  useNativeDriver: false,
+const LAYOUT_SPRING = {
+  duration: 350,
+  update: {
+    type: LayoutAnimation.Types.spring,
+    springDamping: 0.8,
+  },
 };
 
 const TabItem = ({ tab, isFocused, onPress }: any) => {
   const { Icon } = tab;
 
-  const expandAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
   const opacityAnim = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
   const scaleAnim = useRef(new Animated.Value(isFocused ? 1.1 : 1)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(expandAnim, {
-        toValue: isFocused ? 1 : 0,
-        ...SPRING_CONFIG,
-      }),
       Animated.timing(opacityAnim, {
         toValue: isFocused ? 1 : 0,
-        duration: 200,
-        useNativeDriver: false,
+        duration: 220,
+        useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
         toValue: isFocused ? 1.1 : 1,
-        ...SPRING_CONFIG,
+        tension: 140,
+        friction: 15,
+        useNativeDriver: true,
       }),
     ]).start();
   }, [isFocused]);
 
-  // flex: 1 + expandAnim * 1.5
-  const animatedFlex = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 2.5],
-  });
-
-  const animatedBg = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['transparent', THEME.pillActive],
-  });
-
-  const animatedTranslateX = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-10, 0],
-  });
-
-  const animatedMarginLeft = expandAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 6],
-  });
-
   return (
-    <Animated.View
+    <View
       style={[
         styles.tabItemContainer,
         {
-          flex: animatedFlex,
-          backgroundColor: animatedBg,
+          flex: isFocused ? 3.2 : 0.7,
+          backgroundColor: isFocused ? THEME.pillActive : 'transparent',
         },
+        // Active pill gets its own mini glass bevel
+        isFocused && styles.tabItemActive,
       ]}
     >
-      {/* Liquid glass tint layer */}
+      {/* Active pill inner tint */}
       {isFocused && (
-        <View style={styles.liquidGlassTint} pointerEvents="none" />
+        <View style={styles.pillTint} pointerEvents="none" />
       )}
 
-      {/* Liquid glass shine layer */}
+      {/* Active pill shine — simulates inset box-shadow */}
       {isFocused && (
-        <View style={styles.liquidGlassShine} pointerEvents="none" />
+        <View style={styles.pillShine} pointerEvents="none" />
       )}
 
-      {/* Gradient sheen */}
+      {/* Active pill gradient sheen — simulates light refraction on pill */}
       {isFocused && (
         <LinearGradient
-          colors={['rgba(255,255,255,0.25)', 'transparent', 'rgba(0,0,0,0.1)']}
-          locations={[0, 0.2, 1]}
+          colors={[
+            'rgba(255,255,255,0.30)',
+            'rgba(255,255,255,0.05)',
+            'transparent',
+            'rgba(0,0,0,0.06)',
+          ]}
+          locations={[0, 0.15, 0.5, 1]}
           style={StyleSheet.absoluteFillObject}
           pointerEvents="none"
         />
@@ -135,11 +124,7 @@ const TabItem = ({ tab, isFocused, onPress }: any) => {
           <Animated.Text
             style={[
               styles.tabLabel,
-              {
-                opacity: opacityAnim,
-                transform: [{ translateX: animatedTranslateX }],
-                marginLeft: animatedMarginLeft,
-              },
+              { opacity: opacityAnim },
             ]}
             numberOfLines={1}
           >
@@ -147,12 +132,21 @@ const TabItem = ({ tab, isFocused, onPress }: any) => {
           </Animated.Text>
         )}
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 };
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const prevIndex = useRef(state.index);
+
+  // Trigger LayoutAnimation on every tab switch
+  useEffect(() => {
+    if (prevIndex.current !== state.index) {
+      LayoutAnimation.configureNext(LAYOUT_SPRING);
+      prevIndex.current = state.index;
+    }
+  }, [state.index]);
 
   return (
     <View
@@ -161,29 +155,71 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         { paddingBottom: Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : 24 },
       ]}
     >
-      {/* Liquid glass wrapper */}
-      <View style={styles.liquidGlassWrapper}>
-        {/* Glass effect layer: blur */}
+      <View style={styles.glassWrapper}>
+        {/*
+         * LAYER 0 — Blur (backdrop-filter: blur)
+         * Moderate intensity — the "distortion" feel.
+         * CSS uses 3px blur + SVG displacement. We compensate
+         * for the missing displacement with stronger blur.
+         */}
         <BlurView
-          intensity={3}
-          tint="light"
-          style={[StyleSheet.absoluteFillObject, styles.liquidGlassEffect]}
+          intensity={25}
+          tint="default"
+          style={[StyleSheet.absoluteFillObject, styles.glassBlur]}
         />
 
-        {/* Tint */}
-        <View style={[StyleSheet.absoluteFillObject, styles.liquidGlassTintOuter]} pointerEvents="none" />
+        {/*
+         * LAYER 1 — Tint (background: rgba(255,255,255,0.50))
+         * Exact match from the CSS .liquidGlass-tint
+         */}
+        <View
+          style={[StyleSheet.absoluteFillObject, styles.glassTint]}
+          pointerEvents="none"
+        />
 
-        {/* Shine bevel */}
-        <View style={[StyleSheet.absoluteFillObject, styles.liquidGlassShineOuter]} pointerEvents="none" />
+        {/*
+         * LAYER 2 — Shine / bevel
+         * Simulates: box-shadow: inset 2px 2px 1px 0 rgba(255,255,255,0.5),
+         *                        inset -1px -1px 1px 1px rgba(255,255,255,0.5);
+         * We approximate with bright top/left borders, subtle bottom/right
+         */}
+        <View
+          style={[StyleSheet.absoluteFillObject, styles.glassShine]}
+          pointerEvents="none"
+        />
 
-        {/* Gradient overlay */}
+        {/*
+         * LAYER 3 — Refraction gradient
+         * Simulates the light bending you'd see through thick glass.
+         * Top-bright → middle-clear → bottom-dark
+         */}
         <LinearGradient
-          colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']}
-          locations={[0, 0.3, 1]}
+          colors={[
+            'rgba(255,255,255,0.22)',
+            'rgba(255,255,255,0.08)',
+            'transparent',
+            'rgba(0,0,0,0.12)',
+          ]}
+          locations={[0, 0.2, 0.6, 1]}
           style={StyleSheet.absoluteFillObject}
           pointerEvents="none"
         />
 
+        {/*
+         * LAYER 4 — Specular highlight (subtle top glint)
+         * Adds the "wet glass" look
+         */}
+        <LinearGradient
+          colors={[
+            'rgba(255,255,255,0.35)',
+            'transparent',
+          ]}
+          locations={[0, 0.08]}
+          style={[StyleSheet.absoluteFillObject, { borderRadius: 999 }]}
+          pointerEvents="none"
+        />
+
+        {/* Tab items */}
         <View style={styles.tabBarInner}>
           {state.routes.map((route: any, index: number) => {
             const tab       = TAB_CONFIG[index];
@@ -230,7 +266,9 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  /* ── Outer container ── */
+  /* ════════════════════════════════════════════
+   * OUTER CONTAINER
+   * ════════════════════════════════════════════ */
   tabBarOuter: {
     position: 'absolute',
     bottom: 0,
@@ -240,53 +278,60 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
 
-  /* ── Liquid glass wrapper ── */
-  liquidGlassWrapper: {
+  /* ════════════════════════════════════════════
+   * GLASS WRAPPER  (.liquidGlass-wrapper)
+   *
+   * box-shadow: 0 6px 6px rgba(0,0,0,0.2),
+   *             0 0 20px rgba(0,0,0,0.1);
+   * ════════════════════════════════════════════ */
+  glassWrapper: {
     position: 'relative',
     width: '90%',
     maxWidth: 400,
     height: 70,
     borderRadius: 999,
     overflow: 'hidden',
-    display: 'flex',
+    // Outer shadow — matches CSS box-shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 10,
-    borderWidth: 1,
-    borderTopColor:    'rgba(255,255,255,0.9)',
-    borderRightColor:  'rgba(255,255,255,0.5)',
-    borderLeftColor:   'rgba(255,255,255,0.5)',
-    borderBottomColor: 'rgba(0,0,0,0.12)',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 12,
+    // Bevel border — bright top, subtle sides, dark bottom
+    borderWidth: 1.2,
+    borderTopColor:    'rgba(255,255,255,0.95)',
+    borderRightColor:  'rgba(255,255,255,0.45)',
+    borderLeftColor:   'rgba(255,255,255,0.45)',
+    borderBottomColor: 'rgba(0,0,0,0.15)',
   },
 
-  /* .liquidGlass-effect */
-  liquidGlassEffect: {
+  /* .liquidGlass-effect — blur layer */
+  glassBlur: {
     zIndex: 0,
     borderRadius: 999,
   },
 
-  /* .liquidGlass-tint (outer bar) */
-  liquidGlassTintOuter: {
+  /* .liquidGlass-tint — rgba(255,255,255,0.50) */
+  glassTint: {
     zIndex: 1,
-    backgroundColor: 'rgba(255,255,255,0.50)',
+    backgroundColor: 'rgba(255, 255, 255, 0.50)',
     borderRadius: 999,
   },
 
-  /* .liquidGlass-shine (outer bar) */
-  liquidGlassShineOuter: {
+  /* .liquidGlass-shine — inset box-shadow simulation */
+  glassShine: {
     zIndex: 2,
     borderRadius: 999,
-    shadowColor: 'rgba(255,255,255,0.5)',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderWidth: 1.5,
+    borderTopColor:    'rgba(255,255,255,0.6)',
+    borderLeftColor:   'rgba(255,255,255,0.5)',
+    borderRightColor:  'rgba(255,255,255,0.3)',
+    borderBottomColor: 'rgba(255,255,255,0.15)',
   },
 
-  /* ── Inner row ── */
+  /* ════════════════════════════════════════════
+   * TAB BAR INNER ROW
+   * ════════════════════════════════════════════ */
   tabBarInner: {
     zIndex: 3,
     width: '100%',
@@ -297,15 +342,25 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
 
-  /* ── Per-tab pill ── */
+  /* ════════════════════════════════════════════
+   * PER-TAB PILL (inactive state)
+   * ════════════════════════════════════════════ */
   tabItemContainer: {
     height: '100%',
     borderRadius: 999,
     overflow: 'hidden',
     marginHorizontal: 3,
+    borderWidth: 0.5,
+    borderColor: 'transparent',
+  },
+
+  /* Active pill — gets its own bevel border */
+  tabItemActive: {
     borderWidth: 1,
-    borderColor:    'rgba(255,255,255,0.05)',
-    borderTopColor: 'rgba(255,255,255,0.6)',
+    borderTopColor:    'rgba(255,255,255,0.7)',
+    borderLeftColor:   'rgba(255,255,255,0.4)',
+    borderRightColor:  'rgba(255,255,255,0.3)',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
 
   tabItemInner: {
@@ -314,25 +369,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
 
-  /* .liquidGlass-tint on active pill */
-  liquidGlassTint: {
+  /* Active pill tint */
+  pillTint: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1,
-    backgroundColor: 'rgba(255,255,255,0.35)',
+    backgroundColor: 'rgba(255,255,255,0.30)',
     borderRadius: 999,
   },
 
-  /* .liquidGlass-shine on active pill */
-  liquidGlassShine: {
+  /* Active pill shine — inset shadow simulation */
+  pillShine: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 2,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderTopColor:    'rgba(255,255,255,0.55)',
+    borderLeftColor:   'rgba(255,255,255,0.4)',
+    borderRightColor:  'rgba(255,255,255,0.2)',
+    borderBottomColor: 'transparent',
   },
 
+  /* ════════════════════════════════════════════
+   * LABEL
+   * ════════════════════════════════════════════ */
   tabLabel: {
     fontFamily: 'BricolageGrotesque_600',
     fontSize: 13,
