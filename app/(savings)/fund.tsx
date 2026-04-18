@@ -3,26 +3,41 @@
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
+import { fundPocket } from '../../controllers/savingsController';
 
 export default function FundPocketScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [amount, setAmount] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const handleFund = () => { setLoading(true); setTimeout(() => { setLoading(false); router.back(); }, 1500); };
+
+  const handleFund = async () => {
+    setLoading(true);
+    try {
+      await fundPocket(id, parseFloat(amount.replace(/,/g, '')), 'wallet', pin);
+      router.back();
+    } catch (e: any) {
+      alert(e.message || 'Failed to fund pocket');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <AppHeader title="Fund Pocket" />
       <View style={styles.body}>
         <Text style={styles.title}>How much?</Text>
-        <Text style={styles.sub}>From your Naira wallet → House Fund</Text>
+        <Text style={styles.sub}>From your Wallet to Pocket</Text>
         <AppInput label="Amount" value={amount} onChangeText={setAmount} placeholder="0.00" keyboardType="numeric" prefix="₦" />
-        <AppButton label="Fund Pocket" onPress={handleFund} loading={loading} disabled={!amount} style={{ marginTop: 16 }} />
+        <AppInput label="Transaction PIN" value={pin} onChangeText={setPin} placeholder="****" secureTextEntry keyboardType="numeric" maxLength={6} />
+        <AppButton label="Fund Pocket" onPress={handleFund} loading={loading} disabled={!amount || pin.length < 4} style={{ marginTop: 16 }} />
       </View>
     </View>
   );

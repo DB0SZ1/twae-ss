@@ -1,30 +1,60 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
+import { fetchAssets, buyAsset } from '../../controllers/investController';
 
 export default function BuyScreen() {
   const router = useRouter();
-  const [units, setUnits] = useState('');
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [asset, setAsset] = useState<any>(null);
+  const [amount, setAmount] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const price = 1240.50;
-  const total = units ? (parseFloat(units) * price).toLocaleString() : '0.00';
+  const [initLoading, setInitLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAssets().then(assets => {
+      const found = assets.find((a: any) => a.id === id);
+      setAsset(found);
+      setInitLoading(false);
+    });
+  }, [id]);
+
+  if (initLoading) return <View style={styles.container}><ActivityIndicator style={{marginTop: 50}} color={Colors.g3} /></View>;
+  if (!asset) return <View style={styles.container}><Text style={{color: 'white', padding: 20}}>Asset not found.</Text></View>;
+
+  const units = amount && !isNaN(Number(amount)) ? (Number(amount) / asset.currentPrice).toFixed(4) : '0.0000';
+
+  const handleBuy = async () => {
+      setLoading(true);
+      try {
+          await buyAsset(asset.id, Number(amount), asset.currency, pin);
+          router.back();
+      } catch (err: any) {
+          console.warn("Buy failed:", err);
+          Alert.alert('Purchase Failed', err.message || 'Transaction failed');
+      } finally {
+          setLoading(false);
+      }
+  };
 
   return (
     <View style={styles.container}>
-      <AppHeader title="Buy DCEM" />
+      <AppHeader title={`Buy ${asset.symbol}`} />
       <View style={styles.body}>
-        <Text style={styles.title}>Buy Dangote Cement</Text>
-        <Text style={styles.sub}>Current Price: ₦{price.toLocaleString()}</Text>
-        <AppInput label="Number of Units" value={units} onChangeText={setUnits} placeholder="0" keyboardType="numeric" />
+        <Text style={styles.title}>Buy {asset.name}</Text>
+        <Text style={styles.sub}>Current Price: {asset.currency} {asset.currentPrice.toLocaleString()}</Text>
+        <AppInput label={`Amount to Invest (${asset.currency})`} value={amount} onChangeText={setAmount} placeholder="0.00" keyboardType="numeric" />
+        <AppInput label="Transaction PIN (e.g. 142536)" value={pin} onChangeText={setPin} secureTextEntry keyboardType="numeric" />
         <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>ESTIMATED TOTAL</Text>
-          <Text style={styles.totalVal}>₦{total}</Text>
+          <Text style={styles.totalLabel}>ESTIMATED UNITS RECEIVED</Text>
+          <Text style={styles.totalVal}>{units}</Text>
         </View>
-        <AppButton label="Confirm Purchase" onPress={() => { setLoading(true); setTimeout(() => { setLoading(false); router.back(); }, 2000); }} loading={loading} disabled={!units} />
+        <AppButton label="Confirm Purchase" onPress={handleBuy} loading={loading} disabled={!amount || !pin} />
       </View>
     </View>
   );

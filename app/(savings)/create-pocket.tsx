@@ -18,10 +18,24 @@ export default function CreatePocketScreen() {
   const [target, setTarget] = useState('');
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [loading, setLoading] = useState(false);
+  const { createPocket } = require('../../controllers/savingsController');
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setLoading(true);
-    setTimeout(() => { setLoading(false); router.back(); }, 1500);
+    try {
+      await createPocket({
+        name,
+        emoji,
+        type: 'flex',
+        currency,
+        targetAmount: parseFloat(target.replace(/,/g, '')) || 0,
+      });
+      router.back();
+    } catch (e: any) {
+      alert(e.message || 'Failed to create pocket');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

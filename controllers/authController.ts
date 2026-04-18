@@ -48,26 +48,14 @@ export interface AppConfig {
   kycRequiredForTransfer: boolean;
 }
 
-// ── Helpers ────────────────────────────────────────
+import { apiClient } from '../utils/apiClient';
+
+// Helper wrapper to keep apiCall signature working for existing methods
 async function apiCall<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  // In mock mode, skip the real fetch entirely so nothing hangs
-  if (USE_MOCK) {
-    throw new Error('MOCK_MODE');
-  }
-
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'API error');
-  return data as T;
+  return apiClient<T>(endpoint, options);
 }
 
 // Simulate network delay for dev
@@ -81,21 +69,17 @@ function mockDelay(ms: number = 1500): Promise<void> {
  * POST /auth/register — Create new user account
  */
 export async function register(payload: RegisterPayload): Promise<RegisterResponse> {
-  try {
-    return await apiCall<RegisterResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    // Mock response for development
-    await mockDelay(1800);
-    return {
-      success: true,
-      userId: `usr_${Date.now()}`,
-      token: `tok_${Math.random().toString(36).slice(2)}`,
-      message: 'Account created. OTP sent.',
-    };
-  }
+  const data = await apiCall<{success: boolean; user_id: string; message: string}>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  
+  return {
+    success: data.success,
+    userId: data.user_id,
+    token: '', // No token on register
+    message: data.message,
+  };
 }
 
 /**
@@ -120,17 +104,16 @@ export async function checkEmailExists(email: string): Promise<{ exists: boolean
  */
 export async function verifyOTP(payload: OTPVerifyPayload): Promise<{ success: boolean; message: string }> {
   try {
-    return await apiCall('/auth/verify-otp', {
+    const data = await apiCall<{success: boolean; access_token: string; requires_otp: boolean;}>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-  } catch {
-    await mockDelay(1000);
-    // Mock: accept 123456 as valid OTP
-    if (payload.otp === '123456') {
-      return { success: true, message: 'OTP verified' };
-    }
-    return { success: false, message: 'Invalid OTP code' };
+
+    const { setAuthToken } = require('../utils/apiClient');
+    await setAuthToken(data.access_token);
+    return { success: true, message: 'OTP verified' };
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Invalid OTP code' };
   }
 }
 
@@ -153,30 +136,20 @@ export async function resendOTP(userId: string): Promise<{ success: boolean; mes
  * POST /auth/create-pin — Store user's transaction PIN
  */
 export async function createPIN(payload: PINPayload): Promise<{ success: boolean }> {
-  try {
-    return await apiCall('/auth/create-pin', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    await mockDelay(800);
-    return { success: true };
-  }
+  return await apiCall('/auth/create-pin', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 /**
  * POST /auth/enroll-biometric — Register biometric auth for user
  */
 export async function enrollBiometric(userId: string, biometricType: 'face' | 'fingerprint'): Promise<{ success: boolean }> {
-  try {
-    return await apiCall('/auth/enroll-biometric', {
-      method: 'POST',
-      body: JSON.stringify({ userId, biometricType }),
-    });
-  } catch {
-    await mockDelay(600);
-    return { success: true };
-  }
+  return await apiCall('/auth/enroll-biometric', {
+    method: 'POST',
+    body: JSON.stringify({ userId, biometricType }),
+  });
 }
 
 /**
@@ -188,20 +161,23 @@ export async function login(email: string, password: string): Promise<{
   userId: string;
   requiresOTP: boolean;
 }> {
-  try {
-    return await apiCall('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-  } catch {
-    await mockDelay(1500);
-    return {
-      success: true,
-      token: `tok_${Math.random().toString(36).slice(2)}`,
-      userId: `usr_${Date.now()}`,
-      requiresOTP: false,
-    };
-  }
+  const data = await apiCall<{
+    success: boolean; access_token: string; user_id: string; requires_otp: boolean;
+  }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  
+  // Save JWT internally (imported from apiClient)
+  const { setAuthToken } = require('../utils/apiClient');
+  await setAuthToken(data.access_token);
+
+  return {
+    success: data.success,
+    token: data.access_token,
+    userId: data.user_id,
+    requiresOTP: data.requires_otp,
+  };
 }
 
 /**

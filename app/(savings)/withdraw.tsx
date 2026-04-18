@@ -1,27 +1,43 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
+import { withdrawPocket } from '../../controllers/savingsController';
 
 export default function WithdrawScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [amount, setAmount] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleWithdraw = async () => {
+    setLoading(true);
+    try {
+      await withdrawPocket(id, pin, parseFloat(amount.replace(/,/g, '')));
+      router.back();
+    } catch (e: any) {
+      alert(e.message || 'Failed to withdraw from pocket');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <AppHeader title="Withdraw" />
       <View style={styles.body}>
         <Text style={styles.title}>Withdraw funds</Text>
-        <Text style={styles.sub}>Funds will be sent to your Naira wallet</Text>
+        <Text style={styles.sub}>Funds will be sent to your Wallet</Text>
         <AppInput label="Amount" value={amount} onChangeText={setAmount} placeholder="0.00" keyboardType="numeric" prefix="₦" />
+        <AppInput label="Transaction PIN" value={pin} onChangeText={setPin} placeholder="****" secureTextEntry keyboardType="numeric" maxLength={6} />
         <View style={styles.warn}>
-          <Text style={styles.warnText}>Early withdrawal may forfeit accrued interest for the current period.</Text>
+          <Text style={styles.warnText}>If this is a locked pocket, early withdrawal may forfeit some accrued interest or face a 10% penalty.</Text>
         </View>
-        <AppButton label="Withdraw" onPress={() => { setLoading(true); setTimeout(() => { setLoading(false); router.back(); }, 1500); }} loading={loading} disabled={!amount} variant="danger" />
+        <AppButton label="Withdraw" onPress={handleWithdraw} loading={loading} disabled={!amount || pin.length < 4} variant="danger" />
       </View>
     </View>
   );

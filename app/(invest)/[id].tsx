@@ -1,28 +1,38 @@
 /**
  * twae — Asset Detail Screen
  */
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { marketAssets, investmentHoldings } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { fetchAssets } from '../../controllers/investController';
 
 export default function AssetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { format } = useCurrency();
-  const asset = marketAssets.find(a => a.id === id) || investmentHoldings.find(h => h.id === id);
-  if (!asset) return null;
+  const [asset, setAsset] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const isMarket = 'type' in asset;
-  const price = isMarket ? asset.price : asset.currentPrice;
-  const change = asset.changePercent;
-  const symbol = isMarket ? asset.symbol : asset.symbol;
-  const name = isMarket ? asset.name : asset.name;
+  useEffect(() => {
+    fetchAssets().then(assets => {
+      const found = assets.find((a: any) => a.id === id);
+      setAsset(found);
+      setLoading(false);
+    });
+  }, [id]);
+
+  if (loading) return <View style={styles.container}><ActivityIndicator style={{marginTop: 50}} color={Colors.g3} /></View>;
+  if (!asset) return <View style={styles.container}><Text style={{color: 'white', padding: 20}}>Asset not found.</Text></View>;
+
+  const price = asset.currentPrice;
+  const change = 0.45; // Real backend doesn't track historical changes yet short of live oracle integration
+  const symbol = asset.symbol;
+  const name = asset.name;
 
   return (
     <View style={styles.container}>
@@ -46,11 +56,11 @@ export default function AssetDetailScreen() {
 
         {/* Info Grid */}
         <View style={styles.infoGrid}>
-          {isMarket && [
-            { label: 'Market Cap', val: (asset as any).marketCap || '—' },
-            { label: 'Volume', val: (asset as any).volume || '—' },
-            { label: 'Exchange', val: asset.exchange },
-            { label: 'Type', val: (asset as any).type },
+          {[
+            { label: 'Risk Level', val: (asset.riskLevel || '').toUpperCase() },
+            { label: 'Type', val: (asset.type || '').toUpperCase() },
+            { label: 'Currency', val: asset.currency },
+            { label: 'Status', val: asset.isActive ? 'Active' : 'Hidden' },
           ].map((item, i) => (
             <View key={i} style={styles.infoItem}>
               <Text style={styles.infoLabel}>{item.label}</Text>
@@ -60,8 +70,8 @@ export default function AssetDetailScreen() {
         </View>
 
         <View style={styles.btnRow}>
-          <AppButton label="Buy" onPress={() => router.push('/(invest)/buy')} style={{ flex: 1 }} />
-          <AppButton label="Sell" onPress={() => router.push('/(invest)/sell')} variant="secondary" style={{ flex: 1 }} />
+          <AppButton label="Buy" onPress={() => router.push({ pathname: '/(invest)/buy', params: { id: asset.id } })} style={{ flex: 1 }} />
+          <AppButton label="Sell" onPress={() => router.push({ pathname: '/(invest)/sell', params: { id: asset.id } })} variant="secondary" style={{ flex: 1 }} />
         </View>
       </ScrollView>
     </View>

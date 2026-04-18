@@ -1,26 +1,36 @@
 /**
  * twae — Asset Discovery / Market Screen
  */
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../../components/layouts/AppHeader';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { marketAssets } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { fetchAssets } from '../../controllers/investController';
 
-const tabs = ['All', 'Stocks', 'ETFs', 'T-Bills'];
+const tabs = ['All', 'Stocks', 'ETFs', 'Crypto', 'T-Bills'];
 
 export default function DiscoveryScreen() {
   const router = useRouter();
   const { format } = useCurrency();
   const [activeTab, setActiveTab] = useState('All');
   const [search, setSearch] = useState('');
+  const [assets, setAssets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = marketAssets.filter(a => {
+  useEffect(() => {
+    fetchAssets().then(data => {
+      setAssets(data || []);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = assets.filter(a => {
     if (activeTab === 'Stocks' && a.type !== 'stock') return false;
     if (activeTab === 'ETFs' && a.type !== 'etf') return false;
+    if (activeTab === 'Crypto' && a.type !== 'crypto') return false;
     if (activeTab === 'T-Bills' && a.type !== 'tbill') return false;
     if (search && !a.name.toLowerCase().includes(search.toLowerCase()) && !a.symbol.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -34,7 +44,7 @@ export default function DiscoveryScreen() {
       <AppHeader title="Discover" />
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={16} color={Colors.dim} />
-        <TextInput style={styles.searchInput} placeholder="Search stocks, ETFs..." placeholderTextColor={Colors.dim} value={search} onChangeText={setSearch} />
+        <TextInput style={styles.searchInput} placeholder="Search stocks, ETFs, crypto..." placeholderTextColor={Colors.dim} value={search} onChangeText={setSearch} />
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
         {tabs.map(t => (
@@ -44,17 +54,21 @@ export default function DiscoveryScreen() {
         ))}
       </ScrollView>
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        {filtered.map(asset => (
+        {loading ? (
+           <ActivityIndicator style={{marginTop: 50}} color={Colors.g2} />
+        ) : filtered.length === 0 ? (
+           <Text style={{textAlign: 'center', color: Colors.muted, marginTop: 40}}>No assets found.</Text>
+        ) : filtered.map(asset => (
           <TouchableOpacity key={asset.id} style={styles.assetRow} onPress={() => router.push(`/(invest)/${asset.id}`)} activeOpacity={0.7}>
             <View style={styles.assetLogo}><Text style={styles.assetSym}>{asset.symbol}</Text></View>
             <View style={styles.assetInfo}>
               <Text style={styles.assetName}>{asset.name}</Text>
-              <Text style={styles.assetExch}>{asset.exchange}</Text>
+              <Text style={styles.assetExch}>{asset.type.toUpperCase()}</Text>
             </View>
             <View style={styles.assetRight}>
-              <Text style={styles.assetPrice}>{format(asset.price, asset.currency)}</Text>
-              <Text style={[styles.assetCh, { color: asset.changePercent >= 0 ? Colors.greenBright : Colors.red }]}>
-                {asset.changePercent >= 0 ? '+' : ''}{asset.changePercent}%
+              <Text style={styles.assetPrice}>{format(asset.currentPrice, asset.currency)}</Text>
+              <Text style={[styles.assetCh, { color: Colors.greenBright }]}>
+                +0.45%
               </Text>
             </View>
           </TouchableOpacity>

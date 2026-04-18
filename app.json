@@ -17,22 +17,23 @@
       "supportsTablet": true
     },
     "android": {
-  "adaptiveIcon": {
-    "foregroundImage": "./assets/adaptive-icon.png",
-    "backgroundColor": "#ffffff"
-  },
-  "edgeToEdgeEnabled": true,
-  "predictiveBackGestureEnabled": false,
-  "package": "com.db0sz.twae"
-},
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.db0sz.twae"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-  "expo-router",
-  "expo-font",
-  "expo-system-ui"
-],
+      "expo-router",
+      "expo-font",
+      "expo-system-ui",
+      "expo-secure-store"
+    ],
     "extra": {
       "router": {},
       "eas": {

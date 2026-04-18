@@ -1,27 +1,52 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import AppHeader from '../../components/layouts/AppHeader';
 import { Colors, Shadows } from '../../constants/theme';
-import { investmentHoldings, portfolioTotal, portfolioPnLAllTime } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { fetchPortfolio } from '../../controllers/investController';
 
 export default function PortfolioBreakdownScreen() {
   const { format, abbreviate } = useCurrency();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPortfolio().then(res => {
+      setData(res);
+      setLoading(false);
+    }).catch(err => {
+      console.warn("Failed to load portfolio:", err);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading || !data) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={Colors.g3} size="large" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <AppHeader title="Portfolio Breakdown" />
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>TOTAL VALUE</Text>
-          <Text style={styles.totalVal}>{abbreviate(portfolioTotal, 'NGN')}</Text>
-          <Text style={styles.totalCh}>+{portfolioPnLAllTime}% all-time</Text>
+          <Text style={styles.totalVal}>{format(data.totalValueUsd || 0, 'USD')}</Text>
+          <Text style={styles.totalCh}>+{Number(data.totalPnlPercentage || 0).toFixed(2)}% all-time</Text>
         </View>
-        {investmentHoldings.map(h => {
-          const pct = h.currency === 'NGN' ? ((h.totalValue / portfolioTotal) * 100).toFixed(1) : '—';
+        {(!data.holdings || data.holdings.length === 0) ? (
+          <View style={{ marginTop: 40, alignItems: 'center' }}>
+            <Text style={{ fontFamily: 'Inter_400', fontSize: 14, color: Colors.muted }}>No holdings found in your portfolio.</Text>
+          </View>
+        ) : data.holdings.map((h: any) => {
+          const pct = data.totalValueUsd ? ((h.currentValue / data.totalValueUsd) * 100).toFixed(1) : '0';
           return (
             <View key={h.id} style={styles.row}>
-              <View style={styles.rowInfo}><Text style={styles.rowName}>{h.symbol}</Text><Text style={styles.rowSub}>{h.name}</Text></View>
-              <View style={styles.rowRight}><Text style={styles.rowVal}>{format(h.totalValue, h.currency)}</Text><Text style={styles.rowPct}>{pct}%</Text></View>
+              <View style={styles.rowInfo}><Text style={styles.rowName}>{h.asset.symbol}</Text><Text style={styles.rowSub}>{h.asset.name}</Text></View>
+              <View style={styles.rowRight}><Text style={styles.rowVal}>{format(h.currentValue, h.asset.currency)}</Text><Text style={styles.rowPct}>{pct}%</Text></View>
             </View>
           );
         })}

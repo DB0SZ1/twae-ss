@@ -23,6 +23,7 @@ import Svg, { Path } from 'react-native-svg';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
+import { login } from '../../controllers/authController';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -48,10 +49,20 @@ export default function LoginScreen() {
     if (!ok) return;
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await login(email, password);
+      if (res.success) {
+        if (res.requiresOTP) {
+          router.replace('/(onboarding)/phone' as any);
+        } else {
+          router.replace('/(tabs)');
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Login Failed', e.message || 'Check your credentials and try again.');
+    } finally {
       setLoading(false);
-      router.replace('/(tabs)');
-    }, 1800);
+    }
   };
 
   const handleForgotPassword = () => {

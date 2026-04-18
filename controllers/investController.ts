@@ -3,7 +3,7 @@
  * Handles liability groups, projections, and asset destinations
  */
 
-const API_BASE = 'https://api.twae.app/v1';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/v1';
 
 // ── Types ──────────────────────────────────────────
 export type LiabilityGroupId = 1 | 2 | 3 | 4;
@@ -208,4 +208,66 @@ export async function saveInvestmentPreferences(
   } catch {
     return { success: false };
   }
+}
+
+// ── Flow 4 (Investments API) ───────────────────────
+import { apiClient } from '../utils/apiClient';
+
+export async function submitRiskProfile(score: number): Promise<{ riskLevel: string; recommendedAllocation: string }> {
+  try {
+    return await apiClient<{ riskLevel: string; recommendedAllocation: string }>('/investment/risk-profile', {
+      method: 'POST',
+      body: JSON.stringify({ score })
+    });
+  } catch (e) {
+    console.error(e);
+    throw e;
+  }
+}
+
+export async function fetchAssets(): Promise<any[]> {
+  try {
+    return await apiClient<any[]>('/investment/assets', {
+      method: 'GET'
+    });
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+}
+
+export async function fetchPortfolio(): Promise<any> {
+  try {
+    return await apiClient<any>('/investment/portfolio', {
+      method: 'GET'
+    });
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+export async function buyAsset(assetId: string, amount: number, currency: string, pin: string): Promise<any> {
+    return await apiClient<any>('/investment/trade/buy', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: assetId, amount, currency, pin })
+    });
+}
+
+export async function sellAsset(assetId: string, percentage: number, pin: string): Promise<any> {
+    return await apiClient<any>('/investment/trade/sell', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: assetId, percentage, pin })
+    });
+}
+
+export async function fetchOrderHistory(): Promise<any[]> {
+    try {
+        return await apiClient<any[]>('/investment/orders', {
+          method: 'GET'
+        });
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
 }

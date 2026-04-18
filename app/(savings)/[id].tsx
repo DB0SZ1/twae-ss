@@ -1,22 +1,52 @@
 /**
  * twae — Pocket Detail Screen
  */
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { savingsPockets } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { getPocketDetail, SavingsPocket } from '../../controllers/savingsController';
 
 export default function PocketDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { formatNGN } = useCurrency();
-  const pocket = savingsPockets.find(p => p.id === id) || savingsPockets[0];
-  const progress = pocket.currentAmount / pocket.targetAmount;
+  const { formatNGN, formatUSD } = useCurrency();
+  const [pocket, setPocket] = useState<SavingsPocket | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const load = async () => {
+        try {
+          const res = await getPocketDetail(id);
+          if (active) setPocket(res);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
+      load();
+      return () => { active = false; };
+    }, [id])
+  );
+
+  if (loading || !pocket) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.g2} />
+      </View>
+    );
+  }
+
+  const tgt = pocket.targetAmount || 0;
+  const progress = tgt > 0 ? pocket.currentAmount / tgt : 0;
+  const formatAmt = pocket.currency === 'USD' ? formatUSD : formatNGN;
 
   return (
     <View style={styles.container}>
@@ -25,31 +55,35 @@ export default function PocketDetailScreen() {
         {/* Progress Card */}
         <LinearGradient colors={[Colors.g1, Colors.g2]} style={styles.card}>
           <Text style={styles.cardLabel}>SAVED</Text>
-          <Text style={styles.cardVal}>{formatNGN(pocket.currentAmount)}</Text>
-          <View style={styles.progBarOuter}>
-            <View style={[styles.progBarInner, { width: `${Math.round(progress * 100)}%` as any }]} />
-          </View>
-          <Text style={styles.progText}>{Math.round(progress * 100)}% of {formatNGN(pocket.targetAmount)}</Text>
+          <Text style={styles.cardVal}>{formatAmt(pocket.currentAmount)}</Text>
+          {tgt > 0 && (
+            <>
+              <View style={styles.progBarOuter}>
+                <View style={[styles.progBarInner, { width: `${Math.min(100, Math.round(progress * 100))}%` as any }]} />
+              </View>
+              <Text style={styles.progText}>{Math.round(progress * 100)}% of {formatAmt(pocket.targetAmount || 0)}</Text>
+            </>
+          )}
         </LinearGradient>
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          <View style={styles.statItem}><Text style={styles.statVal}>{pocket.interestRate}%</Text><Text style={styles.statLabel}>APY</Text></View>
-          <View style={styles.statItem}><Text style={styles.statVal}>{pocket.maturityDate}</Text><Text style={styles.statLabel}>Maturity</Text></View>
+          <View style={styles.statItem}><Text style={styles.statVal}>{pocket.interestRatePct}%</Text><Text style={styles.statLabel}>APY</Text></View>
+          <View style={styles.statItem}><Text style={styles.statVal}>{pocket.targetDate || 'None'}</Text><Text style={styles.statLabel}>{pocket.isMatured ? 'Matured' : 'Target Date'}</Text></View>
           <View style={styles.statItem}><Text style={styles.statVal}>{pocket.currency}</Text><Text style={styles.statLabel}>Currency</Text></View>
         </View>
 
-        {pocket.autoSave && (
+        {pocket.autoSaveEnabled && (
           <View style={styles.autoSaveCard}>
             <Text style={styles.autoTitle}>Auto-Save Active</Text>
-            <Text style={styles.autoDetail}>{formatNGN(pocket.autoSave.amount)} · {pocket.autoSave.frequency}</Text>
-            <Text style={styles.autoNext}>Next: {pocket.autoSave.nextDate}</Text>
+            <Text style={styles.autoDetail}>{formatAmt(pocket.autoSaveAmount || 0)} · {pocket.autoSaveFrequency}</Text>
+            <Text style={styles.autoNext}>Next: {pocket.nextDebitDate || 'Pending'}</Text>
           </View>
         )}
 
         <View style={styles.btnRow}>
-          <AppButton label="Fund Pocket" onPress={() => router.push('/(savings)/fund')} style={{ flex: 1 }} />
-          <AppButton label="Withdraw" onPress={() => router.push('/(savings)/withdraw')} variant="secondary" style={{ flex: 1 }} />
+          <AppButton label="Fund Pocket" onPress={() => router.push({ pathname: '/(savings)/fund', params: { id: pocket.id } })} style={{ flex: 1 }} />
+          <AppButton label="Withdraw" onPress={() => router.push({ pathname: '/(savings)/withdraw', params: { id: pocket.id } })} variant="secondary" style={{ flex: 1 }} />
         </View>
       </ScrollView>
     </View>

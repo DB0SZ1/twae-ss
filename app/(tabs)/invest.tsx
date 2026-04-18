@@ -14,18 +14,21 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Fonts, FontSizes, Radii, Shadows, Spacing } from '../../constants/theme';
-import {
-  investmentHoldings,
-  portfolioPnLToday,
-  portfolioPnLAllTime,
-  portfolioTotal,
-} from '../../constants/mockData';
+import { useFocusEffect } from '@react-navigation/native';
+import { fetchPortfolio } from '../../controllers/investController';
 import { useCurrency } from '../../hooks/useCurrency';
 
 export default function InvestScreen() {
   const router = useRouter();
   const { abbreviate, format } = useCurrency();
   const [activeTab, setActiveTab] = useState<'holdings' | 'watchlist'>('holdings');
+  const [portfolio, setPortfolio] = useState<any>(null);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchPortfolio().then(data => setPortfolio(data));
+    }, [])
+  );
 
   return (
     <View style={styles.container}>
@@ -44,18 +47,18 @@ export default function InvestScreen() {
         <View style={styles.pnlGrid}>
           <View style={styles.pnlCard}>
             <Text style={styles.pnlLabel}>TOTAL VALUE</Text>
-            <Text style={styles.pnlVal}>{abbreviate(portfolioTotal, 'NGN')}</Text>
+            <Text style={styles.pnlVal}>{format(portfolio?.totalValueUsd || 0, 'USD')}</Text>
           </View>
           <View style={styles.pnlCard}>
             <Text style={styles.pnlLabel}>TODAY P&L</Text>
             <Text style={[styles.pnlVal, { color: Colors.greenBright }]}>
-              +{abbreviate(portfolioPnLToday, 'NGN')}
+              +{format(portfolio?.dailyPnlUsd || 0, 'USD')}
             </Text>
           </View>
           <View style={styles.pnlCard}>
             <Text style={styles.pnlLabel}>ALL-TIME</Text>
             <Text style={[styles.pnlVal, { color: Colors.greenBright }]}>
-              +{portfolioPnLAllTime}%
+              +{Number(portfolio?.totalPnlPercentage || 0).toFixed(2)}%
             </Text>
           </View>
         </View>
@@ -93,18 +96,22 @@ export default function InvestScreen() {
               </TouchableOpacity>
             </View>
 
-            {investmentHoldings.map(holding => (
-              <TouchableOpacity key={holding.id} style={styles.assetRow} onPress={() => router.push(`/(invest)/${holding.id}`)} activeOpacity={0.7}>
-                <View style={[styles.assetLogo, { backgroundColor: holding.currency === 'NGN' ? 'rgba(50,100,209,.06)' : 'rgba(59,130,246,.06)', borderColor: holding.currency === 'NGN' ? 'rgba(50,100,209,.1)' : 'rgba(59,130,246,.1)' }]}>
-                  <Text style={[styles.assetSymbol, { color: holding.currency === 'NGN' ? Colors.g2 : Colors.blue }]}>{holding.symbol}</Text>
+            {(!portfolio?.holdings || portfolio.holdings.length === 0) ? (
+              <View style={{ marginTop: 20, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Inter_400', fontSize: 13, color: Colors.dim }}>No assets in your portfolio yet.</Text>
+              </View>
+            ) : portfolio.holdings.map((holding: any) => (
+              <TouchableOpacity key={holding.id} style={styles.assetRow} onPress={() => router.push(`/(invest)/${holding.asset.id}`)} activeOpacity={0.7}>
+                <View style={[styles.assetLogo, { backgroundColor: 'rgba(59,130,246,.06)', borderColor: 'rgba(59,130,246,.1)' }]}>
+                  <Text style={[styles.assetSymbol, { color: Colors.blue }]}>{holding.asset.symbol}</Text>
                 </View>
                 <View style={styles.assetInfo}>
-                  <Text style={styles.assetName}>{holding.name}</Text>
-                  <Text style={styles.assetUnits}>{holding.units} units · {holding.exchange}</Text>
+                  <Text style={styles.assetName}>{holding.asset.name}</Text>
+                  <Text style={styles.assetUnits}>{holding.units.toFixed(4)} units</Text>
                 </View>
                 <View style={styles.assetRight}>
-                  <Text style={styles.assetPrice}>{format(holding.totalValue, holding.currency)}</Text>
-                  <Text style={[styles.assetCh, { color: holding.changePercent >= 0 ? Colors.greenBright : Colors.red }]}>{holding.changePercent >= 0 ? '+' : ''}{holding.changePercent}%</Text>
+                  <Text style={styles.assetPrice}>{format(holding.currentValue, holding.asset.currency)}</Text>
+                  <Text style={[styles.assetCh, { color: holding.pnlPercentage >= 0 ? Colors.greenBright : Colors.red }]}>{holding.pnlPercentage >= 0 ? '+' : ''}{Number(holding.pnlPercentage).toFixed(2)}%</Text>
                 </View>
               </TouchableOpacity>
             ))}

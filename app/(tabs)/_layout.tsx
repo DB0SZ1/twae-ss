@@ -23,6 +23,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const TAB_CONFIG = [
   { name: 'index',        label: 'Home',     Icon: LayoutGrid     },
   { name: 'transactions', label: 'Activity', Icon: ArrowLeftRight  },
+  { name: 'savings',      label: 'Savings',  Icon: require('lucide-react-native').PiggyBank },
   { name: 'invest',       label: 'Invest',   Icon: BarChart2       },
   { name: 'profile',      label: 'Profile',  Icon: CircleUser      },
 ];
