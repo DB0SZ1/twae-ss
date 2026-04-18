@@ -322,6 +322,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginTop: 4,
   },
+  chartCh: {
+    fontFamily: 'Inter_600',
+    fontSize: 12,
+  },
   chartArea: {
     height: 100,
     borderRadius: 12,

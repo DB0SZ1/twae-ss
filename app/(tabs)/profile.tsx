@@ -30,7 +30,23 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const settingsGroups = [
+  type SettingsItem = {
+    icon: string;
+    label: string;
+    sub: string;
+    color: string;
+    bg: string;
+    border: string;
+    route?: string;
+    toggle?: boolean;
+  };
+
+  type SettingsGroup = {
+    title: string;
+    items: SettingsItem[];
+  };
+
+  const settingsGroups: SettingsGroup[] = [
     {
       title: 'Account',
       items: [
@@ -65,7 +81,7 @@ export default function ProfileScreen() {
 
       {/* Profile Top */}
       <LinearGradient
-        colors={['#1a3575', '#3264d1', '#001a0d']}
+        colors={['#1e1b4b', '#0f172a', '#000']}
         start={{ x: 0.3, y: 0 }}
         end={{ x: 0.7, y: 1 }}
         style={styles.top}
@@ -151,7 +167,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bg,
+    backgroundColor: '#0a0a0a',
   },
   top: {
     paddingTop: 52,
@@ -253,20 +269,19 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontFamily: 'Inter_600',
-    color: Colors.muted,
+    color: 'rgba(255,255,255,0.4)',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 8,
     marginLeft: 4,
   },
   settingsCard: {
-    backgroundColor: Colors.card,
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.blackAlpha05,
+    borderColor: 'rgba(255,255,255,0.08)',
     marginBottom: 14,
     overflow: 'hidden',
-    ...Shadows.card,
   },
   settingsRow: {
     flexDirection: 'row',
@@ -277,7 +292,7 @@ const styles = StyleSheet.create({
   },
   settingsRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.blackAlpha04,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   iconBox: {
     width: 38,
@@ -293,12 +308,12 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 14,
     fontFamily: 'Inter_500',
-    color: Colors.text,
+    color: '#fff',
   },
   rowSub: {
     fontSize: 11,
     fontFamily: 'Inter_400',
-    color: Colors.muted,
+    color: 'rgba(255,255,255,0.5)',
     marginTop: 1,
   },
   toggleSwitch: {

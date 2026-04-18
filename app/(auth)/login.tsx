@@ -13,6 +13,7 @@ import {
   ScrollView,
   Animated,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,22 +55,22 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert(
-      'Reset Password',
-      'Enter your email address above and we\'ll send you a password reset link.',
-      [{ text: 'OK' }]
-    );
+    router.push('/(auth)/forgot-password');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Animated.View style={{ opacity }}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <Animated.View style={{ opacity }}>
           {/* Decorative accent dots */}
           <View style={styles.decoRow}>
             <View style={[styles.decoDot, { backgroundColor: Colors.red }]} />
@@ -149,7 +150,8 @@ export default function LoginScreen() {
             </View>
           </View>
         </Animated.View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -2,7 +2,7 @@
  * twae — Asset Discovery / Market Screen
  */
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../../components/layouts/AppHeader';
@@ -27,7 +27,10 @@ export default function DiscoveryScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <AppHeader title="Discover" />
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={16} color={Colors.dim} />
@@ -57,7 +60,7 @@ export default function DiscoveryScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

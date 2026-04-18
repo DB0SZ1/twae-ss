@@ -1,5 +1,6 @@
 /**
  * AppHeader — Back button, title, and right action slot
+ * Automatically accounts for safe area top inset (notch, dynamic island, status bar).
  */
 import React from 'react';
 import {
@@ -7,11 +8,11 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, FontSizes, Spacing } from '../../constants/theme';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AppHeaderProps {
   title: string;
@@ -19,6 +20,8 @@ interface AppHeaderProps {
   rightAction?: React.ReactNode;
   transparent?: boolean;
   lightText?: boolean;
+  /** Set to false if the parent already handles safe area top inset */
+  safeTop?: boolean;
 }
 
 export default function AppHeader({
@@ -27,8 +30,10 @@ export default function AppHeader({
   rightAction,
   transparent = false,
   lightText = false,
+  safeTop = true,
 }: AppHeaderProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBack) {
@@ -39,7 +44,13 @@ export default function AppHeader({
   };
 
   return (
-    <View style={[styles.container, transparent && styles.transparent]}>
+    <View
+      style={[
+        styles.container,
+        transparent && styles.transparent,
+        safeTop && { paddingTop: insets.top + Spacing.md },
+      ]}
+    >
       <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
         <Ionicons
           name="chevron-back"

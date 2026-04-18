@@ -74,7 +74,7 @@ export default function OTPInput({
       {Array.from({ length }).map((_, index) => (
         <TextInput
           key={index}
-          ref={ref => (refs.current[index] = ref)}
+          ref={ref => { refs.current[index] = ref; }}
           style={[
             styles.box,
             values[index] ? styles.boxFilled : {},

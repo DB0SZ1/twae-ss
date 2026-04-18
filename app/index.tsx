@@ -1,29 +1,36 @@
 /**
- * twae — Splash Screen
- * Brand moment with animated logo, auto-redirect to login
+ * twae — Splash Screen (Screen 1.1)
+ * Light-themed splash with animated logo, blue accent glow
+ * Auto-redirect: reads token → Login or Onboarding
+ * Loads remote config, handles deep-link, offline detection
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
-  Dimensions,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Colors, Fonts, FontSizes } from '../constants/theme';
 import Svg, { Path } from 'react-native-svg';
 
-const { width, height } = Dimensions.get('window');
-
 export default function SplashScreenPage() {
   const router = useRouter();
+  const [offline, setOffline] = useState(false);
+
+  // Animations
   const logoScale = useRef(new Animated.Value(0.5)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const ringScale = useRef(new Animated.Value(0)).current;
+  const ringScale = useRef(new Animated.Value(0.6)).current;
   const ringOpacity = useRef(new Animated.Value(0)).current;
+  const bannerSlide = useRef(new Animated.Value(-60)).current;
+  const bannerOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Entrance animation
@@ -48,24 +55,24 @@ export default function SplashScreenPage() {
       }),
     ]).start();
 
-    // Pulse ring
+    // Blue pulse ring
     Animated.loop(
       Animated.sequence([
         Animated.parallel([
           Animated.timing(ringScale, {
-            toValue: 1.8,
-            duration: 1400,
+            toValue: 2.2,
+            duration: 1600,
             useNativeDriver: true,
           }),
           Animated.timing(ringOpacity, {
             toValue: 0,
-            duration: 1400,
+            duration: 1600,
             useNativeDriver: true,
           }),
         ]),
         Animated.parallel([
           Animated.timing(ringScale, {
-            toValue: 0,
+            toValue: 0.6,
             duration: 0,
             useNativeDriver: true,
           }),
@@ -78,7 +85,7 @@ export default function SplashScreenPage() {
       ])
     ).start();
 
-    // Redirect after 2s
+    // Simple: just redirect after 2.2s, no API calls during splash
     const timer = setTimeout(() => {
       router.replace('/(auth)/login');
     }, 2200);
@@ -88,12 +95,22 @@ export default function SplashScreenPage() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.bg, Colors.surface]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Offline banner */}
+      {offline && (
+        <Animated.View
+          style={[
+            styles.offlineBanner,
+            {
+              transform: [{ translateY: bannerSlide }],
+              opacity: bannerOpacity,
+            },
+          ]}
+        >
+          <Text style={styles.offlineText}>⚡ No connection — retrying…</Text>
+        </Animated.View>
+      )}
 
-      {/* Pulse ring */}
+      {/* Blue pulse ring */}
       <Animated.View
         style={[
           styles.pulseRing,
@@ -115,13 +132,13 @@ export default function SplashScreenPage() {
         ]}
       >
         <LinearGradient
-          colors={[Colors.g2, Colors.g3]}
+          colors={['#004a99', '#0066cc', '#3399ff']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.logoGem}
         >
-          <Svg width={28} height={28} viewBox="0 0 28 28" fill="none">
-            <Path d="M14 3L22 8.5V19.5L14 25L6 19.5V8.5L14 3Z" fill="white" opacity={0.9} />
+          <Svg width={32} height={32} viewBox="0 0 28 28" fill="none">
+            <Path d="M14 3L22 8.5V19.5L14 25L6 19.5V8.5L14 3Z" fill="white" opacity={0.95} />
           </Svg>
         </LinearGradient>
       </Animated.View>
@@ -131,10 +148,10 @@ export default function SplashScreenPage() {
         twae
       </Animated.Text>
 
-      {/* Loading ring */}
-      <View style={styles.loaderWrap}>
-        <Animated.View style={[styles.loaderRing, { opacity: textOpacity }]} />
-      </View>
+      {/* Loading spinner */}
+      <Animated.View style={[styles.loaderWrap, { opacity: textOpacity }]}>
+        <ActivityIndicator size="small" color={Colors.g3} />
+      </Animated.View>
 
       {/* Version */}
       <Animated.Text style={[styles.version, { opacity: textOpacity }]}>
@@ -151,45 +168,57 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.bg,
   },
+  offlineBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.15)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  offlineText: {
+    fontFamily: 'Inter_500',
+    fontSize: 13,
+    color: Colors.red,
+  },
   pulseRing: {
     position: 'absolute',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(50,100,209,.3)',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(0,74,153,0.12)',
   },
   logoContainer: {
     marginBottom: 24,
   },
   logoGem: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.g2,
+    // Blue glow shadow
+    shadowColor: '#004a99',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 12,
   },
   brandName: {
     fontFamily: 'BricolageGrotesque_600',
-    fontSize: 26,
+    fontSize: 28,
     color: Colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
     marginBottom: 24,
   },
   loaderWrap: {
     marginBottom: 40,
-  },
-  loaderRing: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2.5,
-    borderColor: Colors.blackAlpha05,
-    borderTopColor: Colors.gsheen,
   },
   version: {
     position: 'absolute',

@@ -1,56 +1,144 @@
 /**
- * twae — Receipt Screen
+ * twae — Transfer Receipt Screen (Screen C.5)
+ * Post-transfer success screen. Shareable, downloadable.
  */
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  StatusBar, Alert, Share,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import AppButton from '../../components/atoms/AppButton';
-import { Colors, Radii, Shadows } from '../../constants/theme';
+import { Colors, Radii } from '../../constants/theme';
+import { useCurrency } from '../../hooks/useCurrency';
 
-export default function ReceiptScreen() {
+export default function TransferReceiptScreen() {
   const router = useRouter();
-  const details = [
-    { label: 'To', value: 'Emeka Obi · GTBank' },
-    { label: 'Amount', value: '₦85,000.00' },
-    { label: 'Fee', value: 'Free' },
-    { label: 'Date', value: 'Apr 12, 2025 · 10:24 AM' },
-    { label: 'Reference', value: 'TWE-A8F3K2L9' },
-    { label: 'Status', value: 'Completed ✓' },
-  ];
+  const params = useLocalSearchParams<{
+    recipientName: string; recipientBank: string;
+    recipientAcct: string; amount: string; fee: string; txnRef: string;
+  }>();
+  const { formatNGN } = useCurrency();
+
+  const amount = Number(params.amount || 0);
+  const fee = Number(params.fee || 10);
+
+  const copyRef = async () => {
+    await Clipboard.setStringAsync(params.txnRef || '');
+    Alert.alert('Copied!', 'Transaction reference copied');
+  };
+
+  const shareReceipt = async () => {
+    try {
+      await Share.share({
+        message: `twae Transfer Receipt\n\nRecipient: ${params.recipientName}\nBank: ${params.recipientBank}\nAccount: ${params.recipientAcct}\nAmount: ${formatNGN(amount)}\nFee: ${formatNGN(fee)}\nTotal: ${formatNGN(amount + fee)}\nRef: ${params.txnRef}\n\nSent via twae`,
+      });
+    } catch {}
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.checkWrap}>
-          <Ionicons name="checkmark" size={32} color="#fff" />
-        </View>
-        <Text style={styles.title}>Transfer Successful!</Text>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#0f172a', '#1e1b4b', '#000']} style={StyleSheet.absoluteFillObject} />
 
+      <View style={styles.body}>
+        {/* Success Icon */}
+        <View style={styles.successCircle}>
+          <Ionicons name="checkmark" size={48} color={Colors.greenBright} />
+        </View>
+        <Text style={styles.successTitle}>Transfer Successful!</Text>
+        <Text style={styles.successAmount}>{formatNGN(amount)}</Text>
+        <Text style={styles.successSub}>sent to {params.recipientName}</Text>
+
+        {/* Detail Card */}
         <View style={styles.card}>
-          {details.map((d, i) => (
-            <View key={i} style={[styles.row, i < details.length - 1 && styles.rowBorder]}>
-              <Text style={styles.rowLabel}>{d.label}</Text>
-              <Text style={styles.rowValue}>{d.value}</Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Recipient</Text>
+            <Text style={styles.value}>{params.recipientName}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Bank</Text>
+            <Text style={styles.value}>{params.recipientBank}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Account</Text>
+            <Text style={styles.value}>{params.recipientAcct}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <Text style={styles.label}>Amount</Text>
+            <Text style={styles.value}>{formatNGN(amount)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>Fee</Text>
+            <Text style={styles.value}>{formatNGN(fee)}</Text>
+          </View>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={copyRef}>
+            <Text style={styles.label}>Reference</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.value, { color: Colors.g2 }]}>{params.txnRef?.slice(0, 16)}...</Text>
+              <Ionicons name="copy-outline" size={14} color={Colors.g2} />
             </View>
-          ))}
+          </TouchableOpacity>
         </View>
 
-        <AppButton label="Share Receipt" onPress={() => {}} variant="secondary" icon={<Ionicons name="share-outline" size={16} color={Colors.text} />} />
-        <AppButton label="Done" onPress={() => router.replace('/(tabs)')} style={{ marginTop: 10 }} />
+        {/* Actions */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={shareReceipt}>
+            <Ionicons name="share-outline" size={20} color="#fff" />
+            <Text style={styles.actionLbl}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => Alert.alert('Download', 'PDF receipt would be generated here')}>
+            <Ionicons name="document-outline" size={20} color="#fff" />
+            <Text style={styles.actionLbl}>PDF</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => {
+            router.replace({
+              pathname: '/(wallet)/send',
+            });
+          }}>
+            <Ionicons name="repeat-outline" size={20} color="#fff" />
+            <Text style={styles.actionLbl}>Again</Text>
+          </TouchableOpacity>
+        </View>
+
+        <AppButton label="Done — Back to Home" onPress={() => router.replace('/(tabs)')} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg, justifyContent: 'center' },
-  content: { padding: 24 },
-  checkWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.greenBright, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 16, shadowColor: Colors.greenBright, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 6 },
-  title: { fontFamily: 'BricolageGrotesque_600', fontSize: 22, color: Colors.text, textAlign: 'center', marginBottom: 24 },
-  card: { backgroundColor: Colors.card, borderRadius: 16, borderWidth: 1, borderColor: Colors.blackAlpha05, marginBottom: 24, ...Shadows.card },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.blackAlpha04 },
-  rowLabel: { fontFamily: 'Inter_400', fontSize: 13, color: Colors.muted },
-  rowValue: { fontFamily: 'BricolageGrotesque_600', fontSize: 13, color: Colors.text, maxWidth: '60%', textAlign: 'right' },
+  container: { flex: 1, backgroundColor: '#000' },
+  body: { flex: 1, paddingHorizontal: 24, paddingTop: 80, alignItems: 'center' },
+  successCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: 'rgba(74,222,128,0.12)', justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: 'rgba(74,222,128,0.25)', marginBottom: 16,
+  },
+  successTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 22, color: '#fff', marginBottom: 4 },
+  successAmount: { fontFamily: 'BricolageGrotesque_600', fontSize: 36, color: Colors.greenBright, marginBottom: 4 },
+  successSub: { fontFamily: 'Inter_400', fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 28 },
+  card: {
+    width: '100%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24,
+  },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  label: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.5)' },
+  value: { fontFamily: 'Inter_500', fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'right', maxWidth: '55%' },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
+  actionsRow: { flexDirection: 'row', gap: 16, marginBottom: 24 },
+  actionBtn: {
+    alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 24,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  actionLbl: { fontFamily: 'Inter_500', fontSize: 11, color: 'rgba(255,255,255,0.7)' },
 });
