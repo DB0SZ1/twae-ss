@@ -88,7 +88,7 @@ export default function ConfirmPINScreen() {
 
   const handleBiometricEnroll = async () => {
     try {
-      await enrollBiometric(userId || '', Platform.OS === 'ios' ? 'face' : 'fingerprint');
+      await enrollBiometric(userId || '', 'device-id-stub', Platform.OS === 'ios' ? 'face' : 'fingerprint');
     } catch {
       // Non-critical, continue
     }

@@ -14,6 +14,8 @@ import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii } from '../../constants/theme';
 import { submitBVN, submitNIN, submitSSN, submitPassport, checkKYCStatus, getTierInfo } from '../../controllers/kycController';
 
+const IS_DEV = process.env.EXPO_PUBLIC_APP_ENV === 'development' || __DEV__;
+
 type NGDocType = 'bvn' | 'nin';
 type USDocType = 'ssn' | 'passport';
 
@@ -256,6 +258,16 @@ export default function KYCIdentityScreen() {
             loading={loading || polling}
             disabled={value.length < (isUS && usType === 'ssn' ? 9 : isUS ? 6 : 11)}
           />
+
+          {/* Dev-mode skip */}
+          {IS_DEV && (
+            <AppButton
+              label="Skip for now (Dev)"
+              onPress={() => router.replace('/(tabs)')}
+              variant="ghost"
+              style={{ marginTop: 12 }}
+            />
+          )}
         </Animated.View>
       </ScrollView>
     </View>

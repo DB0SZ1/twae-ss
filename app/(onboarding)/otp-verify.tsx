@@ -8,17 +8,33 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import AppHeader from '../../components/layouts/AppHeader';
 import OTPInput from '../../components/atoms/OTPInput';
 import { Colors } from '../../constants/theme';
-import { verifyOTP, resendOTP } from '../../controllers/authController';
+import { verifyOTP, resendOTP, getStoredUserId, getStoredUserPhone } from '../../controllers/authController';
 
 export default function OTPVerifyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ userId?: string; phone?: string; countryCode?: string }>();
 
+  const [resolvedUserId, setResolvedUserId] = useState(params.userId || '');
+  const [resolvedPhone, setResolvedPhone] = useState(params.phone || '');
   const [countdown, setCountdown] = useState(60);
   const [error, setError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+
+  // Resolve userId/phone from SecureStore if route params are empty
+  useEffect(() => {
+    (async () => {
+      if (!resolvedUserId) {
+        const storedId = await getStoredUserId();
+        if (storedId) setResolvedUserId(storedId);
+      }
+      if (!resolvedPhone) {
+        const storedPhone = await getStoredUserPhone();
+        if (storedPhone) setResolvedPhone(storedPhone);
+      }
+    })();
+  }, []);
 
   // Shake animation
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -54,14 +70,14 @@ export default function OTPVerifyScreen() {
 
     try {
       const result = await verifyOTP({
-        userId: params.userId || '',
+        userId: resolvedUserId,
         otp,
       });
 
       if (result.success) {
         router.push({
           pathname: '/(onboarding)/create-pin',
-          params: { userId: params.userId, countryCode: params.countryCode },
+          params: { userId: resolvedUserId, countryCode: params.countryCode },
         });
       } else {
         setError(true);
@@ -83,7 +99,7 @@ export default function OTPVerifyScreen() {
     if (countdown > 0) return;
     setResending(true);
     try {
-      await resendOTP(params.userId || '');
+      await resendOTP(resolvedUserId);
       setCountdown(60);
       setError(false);
       setErrorMessage('');
@@ -113,7 +129,7 @@ export default function OTPVerifyScreen() {
         <Text style={styles.title}>Enter verification code</Text>
         <Text style={styles.sub}>
           We sent a 6-digit code to{'\n'}
-          <Text style={styles.phoneHighlight}>{params.phone || '+234 803 XXX XXXX'}</Text>
+          <Text style={styles.phoneHighlight}>{resolvedPhone || '+234 803 XXX XXXX'}</Text>
         </Text>
 
         {/* OTP Input with shake animation */}

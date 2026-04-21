@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { storage as SecureStore } from './storage';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/v1';
 

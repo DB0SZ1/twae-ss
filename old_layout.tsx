@@ -9,7 +9,7 @@ import {
   LayoutAnimation,
   UIManager,
 } from 'react-native';
-import { LayoutGrid, ArrowLeftRight, BarChart2, CircleUser, MessageCircle } from 'lucide-react-native';
+import { LayoutGrid, ArrowLeftRight, BarChart2, CircleUser } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,7 +23,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const TAB_CONFIG = [
   { name: 'index',        label: 'Home',     Icon: LayoutGrid     },
   { name: 'transactions', label: 'Activity', Icon: ArrowLeftRight  },
-  { name: 'chat',         label: 'Verdant',  Icon: MessageCircle  },
   { name: 'invest',       label: 'Invest',   Icon: BarChart2       },
   { name: 'profile',      label: 'Profile',  Icon: CircleUser      },
 ];
@@ -260,7 +259,6 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index"        />
       <Tabs.Screen name="transactions" />
-      <Tabs.Screen name="chat"         />
       <Tabs.Screen name="invest"       />
       <Tabs.Screen name="profile"      />
     </Tabs>

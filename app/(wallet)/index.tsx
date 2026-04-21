@@ -2,10 +2,10 @@
  * twae — Wallet Home (Screen C.1)
  * NGN + USD balances, virtual account, recent wallet txns, quick actions
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  StatusBar, Alert,
+  StatusBar, Alert, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,23 +13,54 @@ import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import TransactionRow from '../../components/molecules/TransactionRow';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { walletBalances, transactions } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { fetchWalletBalances, fetchTransactions } from '../../controllers/walletController';
 
 export default function WalletHomeScreen() {
   const router = useRouter();
   const { formatNGN, formatUSD } = useCurrency();
   const [hidden, setHidden] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [ngn, setNgn] = useState<any>(null);
+  const [usd, setUsd] = useState<any>(null);
+  const [txns, setTxns] = useState<any[]>([]);
 
-  const ngn = walletBalances[0];
-  const usd = walletBalances[1];
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [bals, txnRes] = await Promise.all([
+        fetchWalletBalances(),
+        fetchTransactions()
+      ]);
+      setNgn(bals.ngn);
+      setUsd(bals.usd);
+      setTxns(txnRes.transactions || []);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load wallet data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const copyAccount = async () => {
-    await Clipboard.setStringAsync(ngn.accountNumber);
+    if (!ngn || !ngn.virtual_account_number) return;
+    await Clipboard.setStringAsync(ngn.virtual_account_number);
     Alert.alert('Copied!', 'Account number copied to clipboard');
   };
 
-  const walletTxns = transactions.slice(0, 5);
+  if (loading || !ngn) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={Colors.gold1} size="large" />
+      </View>
+    );
+  }
+
+  const walletTxns = txns.slice(0, 5);
 
   return (
     <View style={styles.container}>
@@ -55,9 +86,9 @@ export default function WalletHomeScreen() {
               <View style={styles.flagPill}><Text style={{ fontSize: 16 }}>🇳🇬</Text><Text style={styles.currLabel}>Naira Wallet</Text></View>
             </View>
             <Text style={styles.balLabel}>AVAILABLE BALANCE</Text>
-            <Text style={styles.balVal}>{hidden ? '••••••••' : formatNGN(ngn.amount)}</Text>
+            <Text style={styles.balVal}>{hidden ? '••••••••' : formatNGN(ngn.balance || 0)}</Text>
             <TouchableOpacity style={styles.acctRow} onPress={copyAccount}>
-              <Text style={styles.acctNo}>{ngn.accountNumber} · {ngn.bankName}</Text>
+              <Text style={styles.acctNo}>{ngn.virtual_account_number || 'No Account'} · {ngn.virtual_bank_name || 'N/A'}</Text>
               <Ionicons name="copy-outline" size={14} color="rgba(255,255,255,0.5)" />
             </TouchableOpacity>
           </LinearGradient>
@@ -70,7 +101,7 @@ export default function WalletHomeScreen() {
               <View style={styles.flagPill}><Text style={{ fontSize: 16 }}>🇺🇸</Text><Text style={styles.currLabel}>Dollar Wallet</Text></View>
             </View>
             <Text style={styles.balLabel}>AVAILABLE BALANCE</Text>
-            <Text style={styles.balVal}>{hidden ? '••••••••' : formatUSD(usd.amount)}</Text>
+            <Text style={styles.balVal}>{hidden ? '••••••••' : formatUSD(usd?.balance || 0)}</Text>
           </LinearGradient>
         </View>
 
@@ -98,9 +129,18 @@ export default function WalletHomeScreen() {
               <Text style={styles.seeAll}>View All</Text>
             </TouchableOpacity>
           </View>
-          {walletTxns.map(t => (
-            <TransactionRow key={t.id} transaction={t} onPress={() => {}} />
-          ))}
+          {walletTxns.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 32, opacity: 0.6 }}>
+              <Ionicons name="moon-outline" size={36} color={Colors.dim} />
+              <Text style={{ fontFamily: 'Inter_400', color: Colors.dim, fontSize: 13, marginTop: 12 }}>
+                No recent transactions in this wallet
+              </Text>
+            </View>
+          ) : (
+            walletTxns.map(t => (
+              <TransactionRow key={t.id} transaction={t} onPress={() => {}} />
+            ))
+          )}
         </View>
       </ScrollView>
     </View>

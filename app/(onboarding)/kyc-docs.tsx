@@ -12,6 +12,9 @@ import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii, Shadows } from '../../constants/theme';
 import { uploadDocument, performLivenessCheck } from '../../controllers/kycController';
+import * as ImagePicker from 'expo-image-picker';
+
+const IS_DEV = process.env.EXPO_PUBLIC_APP_ENV === 'development' || __DEV__;
 
 type DocStep = 'permission' | 'capture' | 'uploading' | 'done';
 
@@ -36,19 +39,16 @@ export default function KYCDocsScreen() {
     Animated.timing(progressWidth, { toValue: 66, duration: 600, useNativeDriver: false }).start();
   }, []);
 
-  const requestCameraPermission = () => {
-    // In production: Camera.requestCameraPermissionsAsync()
-    Alert.alert(
-      'Camera Access Required',
-      'twae needs camera access to capture your government ID and verify your identity through a selfie.',
-      [
-        { text: 'Not Now', style: 'cancel' },
-        {
-          text: 'Allow',
-          onPress: () => setCameraGranted(true),
-        },
-      ]
-    );
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    setCameraGranted(status === 'granted');
+    if (status !== 'granted') {
+      Alert.alert(
+        'Camera Access Required',
+        'twae needs camera access to capture your government ID and verify your identity through a selfie.',
+        [{ text: 'OK' }]
+      );
+    }
   };
 
   const simulateCapture = async (docType: 'id_front' | 'id_back' | 'selfie') => {
@@ -62,11 +62,25 @@ export default function KYCDocsScreen() {
     setUploadProgress(0);
 
     try {
-      // In production: ImagePicker.launchCameraAsync() then upload
+      const resultAction = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (resultAction.canceled) {
+        setActiveUpload(null);
+        return;
+      }
+
+      setUploadProgress(10); // Fake quick progress init
+      const base64Data = resultAction.assets[0].base64 || 'dummy_base64';
+
       const result = await uploadDocument(
-        params.userId || '',
+        params.userId || 'demo_user',
         docType,
-        'base64_image_data_placeholder',
+        base64Data,
         (pct) => setUploadProgress(pct)
       );
 
@@ -75,7 +89,7 @@ export default function KYCDocsScreen() {
         if (docType === 'id_back') setIdBack(true);
         if (docType === 'selfie') {
           // Also run liveness check
-          const liveness = await performLivenessCheck(params.userId || '', 'selfie_base64');
+          const liveness = await performLivenessCheck(params.userId || 'demo_user', base64Data);
           if (liveness.success) {
             setSelfie(true);
           } else {
@@ -243,6 +257,16 @@ export default function KYCDocsScreen() {
             disabled={!idFront || !idBack || !selfie}
             style={{ marginTop: 16 }}
           />
+
+          {/* Dev-mode skip */}
+          {IS_DEV && (
+            <AppButton
+              label="Skip for now (Dev)"
+              onPress={() => router.replace('/(tabs)')}
+              variant="ghost"
+              style={{ marginTop: 12 }}
+            />
+          )}
         </Animated.View>
       </ScrollView>
     </View>

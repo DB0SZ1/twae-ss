@@ -2,10 +2,10 @@
  * twae — Add Money Screen (Screen C.2)
  * Three methods: Card, Bank Transfer, USSD
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  StatusBar, Alert,
+  StatusBar, Alert, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii } from '../../constants/theme';
+import { fetchVirtualAccount, fundWallet } from '../../controllers/walletController';
 
 type Tab = 'card' | 'bank' | 'ussd';
 
@@ -21,19 +22,46 @@ export default function AddMoneyScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('bank');
   const [amount, setAmount] = useState('');
+  const [virtualAcct, setVirtualAcct] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [funding, setFunding] = useState(false);
 
-  // Mock virtual account
-  const virtualAccount = {
-    bankName: 'GTBank',
-    accountNumber: '0123456789',
-    accountName: 'TWAE/ADAUGO OKONKWO',
+  useEffect(() => {
+    loadVirtualAccount();
+  }, []);
+
+  const loadVirtualAccount = async () => {
+    try {
+      const res = await fetchVirtualAccount();
+      setVirtualAcct(res);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not fetch virtual account details');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyDetails = async () => {
+    if (!virtualAcct) return;
     await Clipboard.setStringAsync(
-      `${virtualAccount.bankName}\n${virtualAccount.accountNumber}\n${virtualAccount.accountName}`
+      `${virtualAcct.bank_name}\n${virtualAcct.account_number}\n${virtualAcct.account_name}`
     );
     Alert.alert('Copied!', 'Account details copied to clipboard');
+  };
+
+  const payWithCard = async () => {
+    if (!amount || Number(amount) < 100) return;
+    setFunding(true);
+    try {
+      const res = await fundWallet({ amount: Number(amount), currency: 'NGN', method: 'card' });
+      Alert.alert('Funding Successful', res.message, [
+        { text: 'OK', onPress: () => router.push('/(wallet)') }
+      ]);
+    } catch (err: any) {
+      Alert.alert('Funding Failed', err.message);
+    } finally {
+      setFunding(false);
+    }
   };
 
   const tabs: { key: Tab; icon: string; label: string }[] = [
@@ -41,6 +69,14 @@ export default function AddMoneyScreen() {
     { key: 'card', icon: 'card-outline', label: 'Card' },
     { key: 'ussd', icon: 'keypad-outline', label: 'USSD' },
   ];
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={Colors.gold1} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -80,17 +116,17 @@ export default function AddMoneyScreen() {
             <View style={styles.acctCard}>
               <View style={styles.acctRow}>
                 <Text style={styles.acctLabel}>Bank</Text>
-                <Text style={styles.acctValue}>{virtualAccount.bankName}</Text>
+                <Text style={styles.acctValue}>{virtualAcct?.bank_name || 'N/A'}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.acctRow}>
                 <Text style={styles.acctLabel}>Account Number</Text>
-                <Text style={styles.acctValueBig}>{virtualAccount.accountNumber}</Text>
+                <Text style={styles.acctValueBig}>{virtualAcct?.account_number || 'N/A'}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.acctRow}>
                 <Text style={styles.acctLabel}>Account Name</Text>
-                <Text style={styles.acctValue}>{virtualAccount.accountName}</Text>
+                <Text style={styles.acctValue}>{virtualAcct?.account_name || 'N/A'}</Text>
               </View>
             </View>
 
@@ -112,11 +148,15 @@ export default function AddMoneyScreen() {
               keyboardType="numeric"
               prefix="₦"
             />
-            <AppButton
-              label="Pay with Card"
-              onPress={() => Alert.alert('Card Payment', 'Flutterwave checkout would open here')}
-              disabled={!amount || Number(amount) < 100}
-            />
+            {funding ? (
+              <ActivityIndicator color={Colors.gold1} style={{ marginVertical: 20 }} />
+            ) : (
+              <AppButton
+                label="Pay with Card"
+                onPress={payWithCard}
+                disabled={!amount || Number(amount) < 100}
+              />
+            )}
             <Text style={styles.hint}>Your card details are securely processed by Flutterwave. We never store your card data.</Text>
           </>
         )}
@@ -128,8 +168,8 @@ export default function AddMoneyScreen() {
             <Text style={styles.stepSub}>Dial the code below on your phone to fund your wallet</Text>
 
             <View style={styles.ussdCard}>
-              <Text style={styles.ussdLabel}>GTBank</Text>
-              <Text style={styles.ussdCode}>*737*{amount || '???'}*0123456789#</Text>
+              <Text style={styles.ussdLabel}>{virtualAcct?.bank_name || 'Bank'}</Text>
+              <Text style={styles.ussdCode}>*737*{amount || '???'}*{virtualAcct?.account_number || '01234'}#</Text>
             </View>
             <AppInput
               label="Amount"
@@ -149,34 +189,27 @@ export default function AddMoneyScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16 },
   headerTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 18, color: '#fff' },
-  tabRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 20 },
+  tabRow: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 24, gap: 8 },
   tab: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 12, borderRadius: Radii.pill, backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  tabActive: { backgroundColor: Colors.g2, borderColor: 'transparent' },
-  tabText: { fontFamily: 'Inter_500', fontSize: 11, color: 'rgba(255,255,255,0.4)' },
+  tabActive: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  tabText: { fontFamily: 'Inter_500', fontSize: 12, color: 'rgba(255,255,255,0.5)' },
   tabTextActive: { color: '#fff' },
   body: { paddingHorizontal: 24, paddingBottom: 40 },
-  stepTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 22, color: '#fff', marginBottom: 8 },
-  stepSub: { fontFamily: 'Inter_400', fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 24, lineHeight: 20 },
-  acctCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 20,
-  },
-  acctRow: { paddingVertical: 10 },
-  acctLabel: { fontFamily: 'Inter_400', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 },
-  acctValue: { fontFamily: 'Inter_500', fontSize: 14, color: '#fff' },
-  acctValueBig: { fontFamily: 'BricolageGrotesque_600', fontSize: 26, color: Colors.g2, letterSpacing: 2 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
-  ussdCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 24,
-    alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 20,
-  },
-  ussdLabel: { fontFamily: 'Inter_500', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8 },
-  ussdCode: { fontFamily: 'BricolageGrotesque_600', fontSize: 22, color: Colors.gold1, letterSpacing: 1 },
-  hint: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 18, marginTop: 16 },
+  stepTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 22, color: '#fff', marginBottom: 6 },
+  stepSub: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 24 },
+  acctCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24 },
+  acctRow: { marginVertical: 8 },
+  acctLabel: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 4 },
+  acctValue: { fontFamily: 'Inter_600', fontSize: 16, color: '#fff' },
+  acctValueBig: { fontFamily: 'BricolageGrotesque_600', fontSize: 28, color: Colors.gold1, letterSpacing: 1 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 8 },
+  hint: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 24, lineHeight: 18 },
+  ussdCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24 },
+  ussdLabel: { fontFamily: 'Inter_500', fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 8 },
+  ussdCode: { fontFamily: 'BricolageGrotesque_600', fontSize: 24, color: Colors.greenBright, letterSpacing: 1 },
 });

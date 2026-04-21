@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, Alert, Animated,
+  StatusBar, Alert, Animated, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,12 +14,14 @@ import AppButton from '../../components/atoms/AppButton';
 import OTPInput from '../../components/atoms/OTPInput';
 import { Colors, Radii } from '../../constants/theme';
 import { useCurrency } from '../../hooks/useCurrency';
+import { transferMoney, convertCurrency } from '../../controllers/walletController';
 
 export default function TransferConfirmScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
-    recipientName: string; recipientBank: string;
+    recipientName: string; recipientBank: string; recipientBankCode: string;
     recipientAcct: string; amount: string; fee: string; note: string;
+    currency: string; isConversion: string; toCurrency: string; saveBeneficiary: string;
   }>();
   const { formatNGN } = useCurrency();
 
@@ -29,42 +31,70 @@ export default function TransferConfirmScreen() {
   const [pinAttempts, setPinAttempts] = useState(0);
 
   const amount = Number(params.amount || 0);
-  const fee = Number(params.fee || 10);
+  const fee = Number(params.fee || 0);
   const total = amount + fee;
+  const isConversion = params.isConversion === 'true';
+  const saveBeneficiary = params.saveBeneficiary === 'true';
 
   const handleConfirm = () => {
     setShowPin(true);
   };
 
-  const handlePinComplete = (enteredPin: string) => {
+  const executeTransaction = async (enteredPin: string) => {
     setLoading(true);
-    // Mock PIN verification
-    setTimeout(() => {
-      if (enteredPin === '123456') {
-        // Success
-        router.replace({
-          pathname: '/(wallet)/receipt',
-          params: {
-            recipientName: params.recipientName,
-            recipientBank: params.recipientBank,
-            recipientAcct: params.recipientAcct,
-            amount: params.amount,
-            fee: params.fee,
-            txnRef: `TXN_${Date.now()}`,
-          },
+    try {
+      // Note: Ideally PIN is sent in payload to backend to authorize. For now logic uses backend directly.
+      let res;
+      if (isConversion) {
+        res = await convertCurrency({
+          fromCurrency: params.currency || 'NGN',
+          toCurrency: params.toCurrency || 'USD',
+          amount: amount
         });
       } else {
-        const attempts = pinAttempts + 1;
-        setPinAttempts(attempts);
+        res = await transferMoney({
+          recipient_name: params.recipientName,
+          recipient_bank_code: params.recipientBankCode || '123',
+          recipient_account: params.recipientAcct,
+          amount: amount,
+          currency: params.currency || 'NGN',
+          narration: params.note || '',
+          save_beneficiary: saveBeneficiary,
+          pin: enteredPin // Pass to backend if endpoint requires it
+        });
+      }
+
+      router.replace({
+        pathname: '/(wallet)/receipt',
+        params: {
+          recipientName: params.recipientName,
+          recipientBank: params.recipientBank,
+          recipientAcct: params.recipientAcct,
+          amount: params.amount,
+          fee: params.fee,
+          txnRef: res.reference || `TXN_${Date.now()}`,
+        },
+      });
+
+    } catch (err: any) {
+      const attempts = pinAttempts + 1;
+      setPinAttempts(attempts);
+      
+      // If error is about wrong PIN, handle it locally for UI sake
+      if ((err.message || '').toLowerCase().includes('pin')) {
         if (attempts >= 5) {
-          Alert.alert('PIN Locked', 'Too many wrong attempts. Your PIN is locked for 15 minutes.');
+          Alert.alert('PIN Locked', 'Too many wrong attempts. Your account is temporarily locked.');
+          router.replace('/(tabs)');
         } else {
           Alert.alert('Wrong PIN', `${5 - attempts} attempt(s) remaining`);
         }
-        setPin('');
-        setLoading(false);
+      } else {
+        Alert.alert('Transaction Failed', err.message || 'Something went wrong.');
       }
-    }, 1200);
+      setPin('');
+      setLoading(false);
+      setShowPin(false); // Give them a chance to recheck details before trying PIN again
+    }
   };
 
   return (
@@ -72,7 +102,6 @@ export default function TransferConfirmScreen() {
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={['#0f172a', '#1e1b4b', '#000']} style={StyleSheet.absoluteFillObject} />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => showPin ? setShowPin(false) : router.back()}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
@@ -84,13 +113,11 @@ export default function TransferConfirmScreen() {
       <View style={styles.body}>
         {!showPin ? (
           <>
-            {/* Amount Display */}
             <View style={styles.amountSection}>
               <Text style={styles.amountLabel}>You're sending</Text>
-              <Text style={styles.amountValue}>{formatNGN(amount)}</Text>
+              <Text style={styles.amountValue}>{params.currency === 'USD' ? `$${amount}` : formatNGN(amount)}</Text>
             </View>
 
-            {/* Recipient Card */}
             <View style={styles.detailCard}>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Recipient</Text>
@@ -98,27 +125,31 @@ export default function TransferConfirmScreen() {
               </View>
               <View style={styles.divider} />
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Bank</Text>
+                <Text style={styles.detailLabel}>{isConversion ? 'Conversion Path' : 'Bank'}</Text>
                 <Text style={styles.detailValue}>{params.recipientBank}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Account</Text>
+                <Text style={styles.detailLabel}>{isConversion ? 'Rate Info' : 'Account'}</Text>
                 <Text style={styles.detailValue}>{params.recipientAcct}</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Amount</Text>
-                <Text style={styles.detailValue}>{formatNGN(amount)}</Text>
+                <Text style={styles.detailValue}>{params.currency === 'USD' ? `$${amount}` : formatNGN(amount)}</Text>
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Fee</Text>
-                <Text style={styles.detailValue}>{formatNGN(fee)}</Text>
-              </View>
+              {!isConversion && (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Fee</Text>
+                  <Text style={styles.detailValue}>{formatNGN(fee)}</Text>
+                </View>
+              )}
               <View style={styles.divider} />
               <View style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: '#fff' }]}>Total Deducted</Text>
-                <Text style={[styles.detailValue, { color: '#fff', fontFamily: 'BricolageGrotesque_600', fontSize: 18 }]}>{formatNGN(total)}</Text>
+                <Text style={[styles.detailValue, { color: '#fff', fontFamily: 'BricolageGrotesque_600', fontSize: 18 }]}>
+                  {params.currency === 'USD' ? `$${total}` : formatNGN(total)}
+                </Text>
               </View>
               {params.note && (
                 <>
@@ -131,22 +162,21 @@ export default function TransferConfirmScreen() {
               )}
             </View>
 
-            <AppButton label="Confirm & Enter PIN" onPress={handleConfirm} />
+            <AppButton label="Confirm & Enter PIN" onPress={handleConfirm} disabled={loading} />
             <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </>
         ) : (
-          /* PIN Entry */
           <View style={styles.pinSection}>
             <Ionicons name="lock-closed" size={32} color={Colors.g2} style={{ marginBottom: 16 }} />
             <Text style={styles.pinTitle}>Enter your PIN</Text>
             <Text style={styles.pinSub}>Enter your 6-digit transaction PIN to authorize</Text>
             <OTPInput
               length={6}
-              onComplete={(v: string) => handlePinComplete(v)}
+              onComplete={(v: string) => executeTransaction(v)}
             />
-            {loading && <Text style={styles.processingText}>Processing transfer...</Text>}
+            {loading && <Text style={styles.processingText}>Processing transaction securely...</Text>}
           </View>
         )}
       </View>
@@ -162,10 +192,7 @@ const styles = StyleSheet.create({
   amountSection: { alignItems: 'center', marginVertical: 24 },
   amountLabel: { fontFamily: 'Inter_400', fontSize: 14, color: 'rgba(255,255,255,0.5)', marginBottom: 8 },
   amountValue: { fontFamily: 'BricolageGrotesque_600', fontSize: 40, color: '#fff' },
-  detailCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24,
-  },
+  detailCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   detailLabel: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.5)' },
   detailValue: { fontFamily: 'Inter_500', fontSize: 13, color: 'rgba(255,255,255,0.8)', textAlign: 'right', maxWidth: '55%' },

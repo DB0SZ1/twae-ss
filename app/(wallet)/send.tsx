@@ -2,10 +2,10 @@
  * twae — Send Money Screen (Screen C.3)
  * Beneficiary selection, bank lookup, amount entry, save beneficiary toggle
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  StatusBar, TextInput, Switch, Alert,
+  StatusBar, TextInput, Switch, Alert, ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,13 +13,16 @@ import { useRouter } from 'expo-router';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii } from '../../constants/theme';
-import { beneficiaries, bankList, walletBalances } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { verifyBankAccount } from '../../controllers/walletController';
+import { fetchBankList } from '../../controllers/bankController';
+import { fetchBeneficiaries, fetchWalletBalances } from '../../controllers/walletController';
 
 export default function SendMoneyScreen() {
   const router = useRouter();
   const { formatNGN } = useCurrency();
   const [step, setStep] = useState<'recipient' | 'amount'>('recipient');
+  
   const [searchQ, setSearchQ] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
   const [accountNo, setAccountNo] = useState('');
@@ -27,50 +30,95 @@ export default function SendMoneyScreen() {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [saveBen, setSaveBen] = useState(false);
+  
   const [showBanks, setShowBanks] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const [bens, setBens] = useState<any[]>([]);
+  const [bankList, setBankList] = useState<any[]>([]);
+  const [balance, setBalance] = useState(0);
 
-  const filteredBens = beneficiaries.filter(b =>
-    b.name.toLowerCase().includes(searchQ.toLowerCase())
-  );
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
-  // Simulate account lookup
-  const lookupAccount = async () => {
-    if (accountNo.length < 10) return;
-    setVerifying(true);
-    setTimeout(() => {
-      setResolvedName('OKONKWO ADAUGO CHIDINMA');
-      setVerifying(false);
-    }, 800);
+  const loadInitialData = async () => {
+    try {
+      const [b, l, bal] = await Promise.all([
+        fetchBeneficiaries(),
+        fetchBankList(),
+        fetchWalletBalances()
+      ]);
+      setBens(b);
+      setBankList(l);
+      setBalance(bal?.ngn?.balance || 0);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to load transfer data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const balance = walletBalances[0].amount;
+  const filteredBens = bens.filter(b =>
+    b.account_name.toLowerCase().includes(searchQ.toLowerCase()) || 
+    b.account_number.includes(searchQ)
+  );
+
+  const lookupAccount = async () => {
+    if (accountNo.length < 10 || !selectedBank) return;
+    setVerifying(true);
+    setResolvedName('');
+    try {
+      const res = await verifyBankAccount(accountNo, selectedBank);
+      if (res.success) {
+        setResolvedName(res.accountName || res.account_name);
+      } else {
+        throw new Error('Invalid account');
+      }
+    } catch (err: any) {
+      Alert.alert('Lookup Failed', 'Could not verify account details automatically. Please check the account number and bank.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const fee = 10;
   const total = Number(amount) + fee;
 
-  const handleContinue = () => {
-    const amt = Number(amount);
-    if (amt <= 0) return;
-    if (amt > balance) {
-      Alert.alert('Insufficient Balance', `You have ${formatNGN(balance)} available.`);
-      return;
+  const handleNext = () => {
+    if (step === 'recipient') {
+      if (!resolvedName) return Alert.alert('Hold on', 'Please verify the recipient account first.');
+      setStep('amount');
+    } else {
+      if (!amount || total > balance) return Alert.alert('Invalid Amount', 'Insufficient balance');
+      
+      const bankName = bankList.find(b => b.code === selectedBank)?.name || selectedBank;
+      
+      router.push({
+        pathname: '/(wallet)/confirm',
+        params: {
+          recipientName: resolvedName,
+          recipientBank: bankName,
+          recipientBankCode: selectedBank,
+          recipientAcct: accountNo,
+          amount,
+          fee: fee.toString(),
+          note,
+          saveBeneficiary: saveBen ? 'true' : 'false',
+          currency: 'NGN'
+        },
+      });
     }
-    if (amt > 2000000) {
-      Alert.alert('Limit Exceeded', 'This exceeds your ₦2,000,000 daily limit. Upgrade your account.');
-      return;
-    }
-    router.push({
-      pathname: '/(wallet)/confirm',
-      params: {
-        recipientName: resolvedName || 'Recipient',
-        recipientBank: selectedBank,
-        recipientAcct: accountNo,
-        amount: amount,
-        fee: fee.toString(),
-        note: note,
-      },
-    });
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={Colors.gold1} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -86,112 +134,118 @@ export default function SendMoneyScreen() {
         <View style={{ width: 22 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-        {step === 'recipient' && (
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        {step === 'recipient' ? (
           <>
-            {/* Search */}
-            <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={16} color="rgba(255,255,255,0.4)" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search beneficiaries..."
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={searchQ}
-                onChangeText={setSearchQ}
-              />
-            </View>
+            {/* New recipient form */}
+            <View style={styles.newTransferCard}>
+              <Text style={styles.sectionTitle}>New Transfer</Text>
 
-            {/* Saved Beneficiaries */}
-            <Text style={styles.sectionLabel}>SAVED BENEFICIARIES</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.benScroll}>
-              {/* New recipient */}
-              <TouchableOpacity style={styles.benItem} onPress={() => {}}>
-                <View style={[styles.benAvatar, { backgroundColor: 'rgba(50,100,209,0.15)' }]}>
-                  <Ionicons name="add" size={20} color={Colors.g2} />
-                </View>
-                <Text style={styles.benName}>New</Text>
+              {/* Bank Selector */}
+              <Text style={styles.fieldLabel}>Select Bank</Text>
+              <TouchableOpacity style={styles.bankSelectRow} onPress={() => setShowBanks(!showBanks)}>
+                <Text style={styles.bankSelectText}>
+                  {selectedBank ? bankList.find(b => b.code === selectedBank)?.name || 'Select Bank' : 'Choose a bank'}
+                </Text>
+                <Ionicons name={showBanks ? 'chevron-up' : 'chevron-down'} size={20} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
-              {filteredBens.map(b => (
-                <TouchableOpacity
-                  key={b.id}
-                  style={styles.benItem}
-                  onPress={() => {
-                    setSelectedBank(b.bankName);
-                    setAccountNo(b.accountNumber);
-                    setResolvedName(b.name);
-                    setStep('amount');
-                  }}
-                >
-                  <View style={styles.benAvatar}>
-                    <Text style={styles.benInitials}>{b.initials}</Text>
-                  </View>
-                  <Text style={styles.benName} numberOfLines={1}>{b.name.split(' ')[0]}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Manual Entry */}
-            <Text style={styles.sectionLabel}>OR ENTER DETAILS</Text>
-
-            {/* Bank Selector */}
-            <TouchableOpacity style={styles.selector} onPress={() => setShowBanks(!showBanks)}>
-              <Text style={[styles.selectorText, selectedBank ? { color: '#fff' } : {}]}>
-                {selectedBank || 'Select Bank'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="rgba(255,255,255,0.4)" />
-            </TouchableOpacity>
-            {showBanks && (
-              <View style={styles.bankDropdown}>
-                <ScrollView style={{ maxHeight: 200 }}>
+              {showBanks && (
+                <View style={styles.bankList}>
                   {bankList.map(b => (
                     <TouchableOpacity
-                      key={b}
-                      style={styles.bankItem}
-                      onPress={() => { setSelectedBank(b); setShowBanks(false); }}
+                      key={b.code}
+                      style={styles.bankListItem}
+                      onPress={() => { setSelectedBank(b.code); setShowBanks(false); }}
                     >
-                      <Text style={styles.bankItemText}>{b}</Text>
+                      <Text style={styles.bankListItemText}>{b.name}</Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </View>
+              )}
+
+              <Text style={styles.fieldLabel}>Account Number</Text>
+              <View style={styles.acctRow}>
+                <TextInput
+                  style={styles.acctInput}
+                  placeholder="0000000000"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  keyboardType="numeric"
+                  maxLength={10}
+                  value={accountNo}
+                  onChangeText={(val) => {
+                    setAccountNo(val);
+                    setResolvedName('');
+                  }}
+                />
+                <TouchableOpacity
+                  style={[styles.verifyBtn, (!selectedBank || accountNo.length < 10) && { opacity: 0.5 }]}
+                  disabled={!selectedBank || accountNo.length < 10 || verifying}
+                  onPress={lookupAccount}
+                >
+                  {verifying ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.verifyBtnText}>Verify</Text>}
+                </TouchableOpacity>
+              </View>
+
+              {resolvedName ? (
+                <View style={styles.resolvedBox}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.greenBright} />
+                  <Text style={styles.resolvedText}>{resolvedName}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {/* Beneficiaries List */}
+            {bens.length > 0 && (
+              <View style={styles.bensSection}>
+                <Text style={styles.sectionTitle}>Saved Beneficiaries</Text>
+                <AppInput
+                  placeholder="Search name or account"
+                  value={searchQ}
+                  onChangeText={setSearchQ}
+                  leftIcon={<Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" />}
+                />
+                <View style={{ marginTop: 12 }}>
+                  {filteredBens.map(b => (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={styles.benRow}
+                      onPress={() => {
+                        setSelectedBank(b.bank_code);
+                        setAccountNo(b.account_number);
+                        setResolvedName(b.account_name);
+                      }}
+                    >
+                      <View style={styles.benInitials}>
+                        <Text style={styles.benInitialsText}>{b.account_name.substring(0, 2).toUpperCase()}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.benName}>{b.account_name}</Text>
+                        <Text style={styles.benBank}>{b.bank_name} · {b.account_number}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
 
-            <AppInput
-              label="Account Number"
-              value={accountNo}
-              onChangeText={(v) => { setAccountNo(v); if (v.length === 10) lookupAccount(); }}
-              placeholder="0123456789"
-              keyboardType="number-pad"
-              maxLength={10}
-            />
-
-            {verifying && <Text style={styles.verifyingText}>Verifying account...</Text>}
-            {resolvedName && !verifying && (
-              <View style={styles.resolvedCard}>
-                <Ionicons name="checkmark-circle" size={18} color={Colors.greenBright} />
-                <Text style={styles.resolvedName}>{resolvedName}</Text>
-              </View>
-            )}
-
-            <AppButton
-              label="Continue"
-              onPress={() => setStep('amount')}
-              disabled={!selectedBank || accountNo.length < 10}
-            />
+            <View style={{ marginTop: 24 }}>
+              <AppButton label="Next" onPress={handleNext} disabled={!resolvedName} />
+            </View>
           </>
-        )}
-
-        {step === 'amount' && (
+        ) : (
+          /* Amount step */
           <>
-            {/* Recipient Summary */}
-            <View style={styles.recipientCard}>
-              <View style={styles.recipientAvatar}>
-                <Text style={styles.recipientInit}>{resolvedName.charAt(0)}</Text>
+            <View style={styles.recipientHeader}>
+              <View style={styles.avatarBig}>
+                <Text style={styles.avatarBigText}>{resolvedName.substring(0, 2).toUpperCase()}</Text>
               </View>
-              <View>
-                <Text style={styles.recipientName}>{resolvedName}</Text>
-                <Text style={styles.recipientBank}>{selectedBank} · {accountNo}</Text>
-              </View>
+              <Text style={styles.headerRecipName}>{resolvedName}</Text>
+              <Text style={styles.headerRecipBank}>{bankList.find(b => b.code === selectedBank)?.name} · {accountNo}</Text>
+            </View>
+
+            <View style={styles.balCard}>
+              <Text style={styles.balCardLabel}>Available Balance</Text>
+              <Text style={styles.balCardVal}>{formatNGN(balance)}</Text>
             </View>
 
             <AppInput
@@ -202,46 +256,41 @@ export default function SendMoneyScreen() {
               keyboardType="numeric"
               prefix="₦"
             />
-            <Text style={styles.balHint}>Available: {formatNGN(balance)}</Text>
+            {amount ? (
+              <View style={styles.feeBreakdown}>
+                <View style={styles.feeRow}><Text style={styles.feeLabel}>Transfer Fee</Text><Text style={styles.feeVal}>{formatNGN(fee)}</Text></View>
+                <View style={[styles.feeRow, { borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingTop: 12, marginTop: 12 }]}>
+                  <Text style={[styles.feeLabel, { color: '#fff' }]}>Total Deducted</Text>
+                  <Text style={[styles.feeVal, { color: '#fff', fontFamily: 'BricolageGrotesque_600' }]}>{formatNGN(total)}</Text>
+                </View>
+              </View>
+            ) : null}
 
             <AppInput
-              label="Note (optional)"
+              label="Narration / Note (Optional)"
               value={note}
               onChangeText={setNote}
               placeholder="What's this for?"
             />
 
-            {/* Save Beneficiary Toggle */}
-            <View style={styles.toggleRow}>
-              <Text style={styles.toggleLabel}>Save as beneficiary</Text>
+            <View style={styles.saveRow}>
+              <View>
+                <Text style={styles.saveLabel}>Save Beneficiary</Text>
+                <Text style={styles.saveSub}>Add to your quick-send list</Text>
+              </View>
               <Switch
                 value={saveBen}
                 onValueChange={setSaveBen}
-                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.g2 }}
+                trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.gold2 }}
                 thumbColor="#fff"
               />
             </View>
 
-            {/* Summary */}
-            {amount && Number(amount) > 0 && (
-              <View style={styles.summaryCard}>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Amount</Text>
-                  <Text style={styles.summaryVal}>{formatNGN(Number(amount))}</Text>
-                </View>
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Fee</Text>
-                  <Text style={styles.summaryVal}>{formatNGN(fee)}</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: '#fff' }]}>Total</Text>
-                  <Text style={[styles.summaryVal, { color: '#fff', fontFamily: 'BricolageGrotesque_600' }]}>{formatNGN(total)}</Text>
-                </View>
-              </View>
-            )}
-
-            <AppButton label="Review Transfer" onPress={handleContinue} disabled={!amount || Number(amount) <= 0} />
+            <AppButton
+              label="Review & Send"
+              onPress={handleNext}
+              disabled={!amount || Number(amount) < 50 || total > balance}
+            />
           </>
         )}
       </ScrollView>
@@ -254,53 +303,39 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16 },
   headerTitle: { fontFamily: 'BricolageGrotesque_600', fontSize: 18, color: '#fff' },
   body: { paddingHorizontal: 24, paddingBottom: 40 },
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 20,
-  },
-  searchInput: { flex: 1, color: '#fff', fontFamily: 'Inter_400', fontSize: 14 },
-  sectionLabel: { fontSize: 11, fontFamily: 'Inter_600', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.6, marginBottom: 12 },
-  benScroll: { marginBottom: 24 },
-  benItem: { alignItems: 'center', marginRight: 16 },
-  benAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', marginBottom: 6 },
-  benInitials: { fontFamily: 'BricolageGrotesque_600', fontSize: 14, color: Colors.g2 },
-  benName: { fontFamily: 'Inter_500', fontSize: 11, color: 'rgba(255,255,255,0.5)', maxWidth: 60, textAlign: 'center' },
-  selector: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    height: 52, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 16, marginBottom: 16,
-  },
-  selectorText: { fontFamily: 'Inter_400', fontSize: 15, color: 'rgba(255,255,255,0.35)' },
-  bankDropdown: { backgroundColor: 'rgba(15,23,42,0.95)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 16, marginTop: -8 },
-  bankItem: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  bankItemText: { fontFamily: 'Inter_400', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
-  verifyingText: { fontFamily: 'Inter_400', fontSize: 12, color: Colors.gold1, marginBottom: 12 },
-  resolvedCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(74,222,128,0.08)', borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: 'rgba(74,222,128,0.15)', marginBottom: 20,
-  },
-  resolvedName: { fontFamily: 'Inter_500', fontSize: 14, color: Colors.greenBright },
-  recipientCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24,
-  },
-  recipientAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(50,100,209,0.15)', justifyContent: 'center', alignItems: 'center' },
-  recipientInit: { fontFamily: 'BricolageGrotesque_600', fontSize: 18, color: Colors.g2 },
-  recipientName: { fontFamily: 'BricolageGrotesque_600', fontSize: 16, color: '#fff' },
-  recipientBank: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
-  balHint: { fontFamily: 'Inter_400', fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: -8, marginBottom: 16 },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  toggleLabel: { fontFamily: 'Inter_500', fontSize: 14, color: 'rgba(255,255,255,0.7)' },
-  summaryCard: {
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 18,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 20,
-  },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  summaryLabel: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.5)' },
-  summaryVal: { fontFamily: 'Inter_500', fontSize: 13, color: 'rgba(255,255,255,0.8)' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 6 },
+  newTransferCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24 },
+  sectionTitle: { fontFamily: 'Inter_600', fontSize: 13, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
+  fieldLabel: { fontFamily: 'Inter_500', fontSize: 12, color: '#fff', marginBottom: 8, marginTop: 12 },
+  bankSelectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  bankSelectText: { fontFamily: 'Inter_500', fontSize: 15, color: '#fff' },
+  bankList: { maxHeight: 200, backgroundColor: '#111', borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  bankListItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  bankListItemText: { fontFamily: 'Inter_400', fontSize: 14, color: '#fff' },
+  acctRow: { flexDirection: 'row', gap: 12 },
+  acctInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 12, paddingHorizontal: 16, height: 52, fontFamily: 'Inter_500', fontSize: 15, color: '#fff', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  verifyBtn: { backgroundColor: Colors.g2, borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
+  verifyBtnText: { fontFamily: 'Inter_600', fontSize: 14, color: '#fff' },
+  resolvedBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(16,185,129,0.1)', padding: 12, borderRadius: 12, marginTop: 12 },
+  resolvedText: { fontFamily: 'Inter_600', fontSize: 14, color: Colors.greenBright },
+  bensSection: { backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  benRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  benInitials: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  benInitialsText: { fontFamily: 'Inter_600', fontSize: 14, color: '#fff' },
+  benName: { fontFamily: 'Inter_500', fontSize: 15, color: '#fff', marginBottom: 4 },
+  benBank: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  recipientHeader: { alignItems: 'center', marginBottom: 32, marginTop: 12 },
+  avatarBig: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  avatarBigText: { fontFamily: 'Inter_600', fontSize: 20, color: '#fff' },
+  headerRecipName: { fontFamily: 'BricolageGrotesque_600', fontSize: 20, color: '#fff', marginBottom: 4 },
+  headerRecipBank: { fontFamily: 'Inter_400', fontSize: 14, color: 'rgba(255,255,255,0.5)' },
+  balCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginBottom: 24 },
+  balCardLabel: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  balCardVal: { fontFamily: 'BricolageGrotesque_600', fontSize: 18, color: '#fff' },
+  feeBreakdown: { backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 16, padding: 16, marginTop: -8, marginBottom: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  feeLabel: { fontFamily: 'Inter_400', fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  feeVal: { fontFamily: 'Inter_500', fontSize: 14, color: 'rgba(255,255,255,0.9)' },
+  saveRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 16, marginVertical: 24 },
+  saveLabel: { fontFamily: 'Inter_500', fontSize: 15, color: '#fff', marginBottom: 2 },
+  saveSub: { fontFamily: 'Inter_400', fontSize: 12, color: 'rgba(255,255,255,0.5)' },
 });

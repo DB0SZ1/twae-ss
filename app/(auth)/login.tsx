@@ -23,7 +23,7 @@ import Svg, { Path } from 'react-native-svg';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
-import { login } from '../../controllers/authController';
+import { login, storeUserContext } from '../../controllers/authController';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -52,8 +52,15 @@ export default function LoginScreen() {
     try {
       const res = await login(email, password);
       if (res.success) {
+        // Save context for downstream screens
+        await storeUserContext(res.userId, undefined, email);
+
         if (res.requiresOTP) {
-          router.replace('/(onboarding)/phone' as any);
+          // User hasn't verified phone — send them to OTP verify
+          router.replace({
+            pathname: '/(onboarding)/otp-verify',
+            params: { userId: res.userId },
+          } as any);
         } else {
           router.replace('/(tabs)');
         }
@@ -67,6 +74,54 @@ export default function LoginScreen() {
 
   const handleForgotPassword = () => {
     router.push('/(auth)/forgot-password');
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      const LocalAuthentication = require('expo-local-authentication');
+      const SecureStore = require('../../utils/storage').storage;
+
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        Alert.alert('Biometrics Unavailable', 'Please set up Face ID or Fingerprint on your device first.');
+        return;
+      }
+
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Sign in to Verdant',
+        fallbackLabel: 'Use Password',
+      });
+
+      if (authResult.success) {
+        // Read local user mapping
+        const savedEmail = await SecureStore.getItemAsync('twa_user_email');
+        if (!savedEmail || !savedEmail.trim()) {
+          Alert.alert('Setup Required', 'Please sign in with your email and password first to link this device.');
+          return;
+        }
+
+        setLoading(true);
+        // Call the biometric login controller
+        const { biometricLogin } = require('../../controllers/authController');
+        const res = await biometricLogin(savedEmail, 'device-id-stub', 'mock-nonce', 'mock-signature');
+        
+        if (res.success) {
+          if (res.requiresOTP) {
+            router.replace({
+              pathname: '/(onboarding)/otp-verify',
+              params: { userId: res.userId },
+            } as any);
+          } else {
+            router.replace('/(tabs)');
+          }
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('Authentication Failed', e.message || 'Unable to authenticate.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -148,7 +203,7 @@ export default function LoginScreen() {
 
             <AppButton
               label="Face ID / Fingerprint"
-              onPress={() => {}}
+              onPress={handleBiometricLogin}
               variant="secondary"
               icon={<Ionicons name="finger-print" size={18} color={Colors.gsheen} />}
             />

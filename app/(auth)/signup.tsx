@@ -154,6 +154,9 @@ export default function SignupScreen() {
         password,
         countryCode: country.code,
         referralCode: referralCode.trim() || undefined,
+        deviceId: 'device-id-stub',
+        deviceName: Platform.OS === 'ios' ? 'iPhone' : 'Android Device',
+        osName: Platform.OS,
       });
 
       if (result.success) {
