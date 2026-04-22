@@ -26,28 +26,29 @@ import {
   currentUser,
   walletBalances,
   portfolioTotal,
-  portfolioChange,
-  transactions,
-  savingsPockets,
-  totalSavings,
 } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
-import { fetchDashboardData, DashboardResponse } from '../../controllers/dashboardController';
+import { fetchDashboardData, DashboardResponse, DashboardAggregatedData } from '../../controllers/dashboardController';
 
 const { width } = Dimensions.get('window');
 
-const initialDashData: DashboardResponse = {
-  ngnBalance: 0,
-  usdBalance: 0,
-  unreadNotifications: 0,
-  greetingName: 'User',
-  liveWealthAccrued: 0,
-  projected40YearValue: 0,
-  ytdContribution: 0,
-  liabilityCapturePercent: 0,
-  safetyGovernorStatus: 'green',
-  topMovers: [],
-  hardRailEnabled: false,
+const initialDashData: DashboardAggregatedData = {
+  dashboard: {
+    ngnBalance: 0,
+    usdBalance: 0,
+    unreadNotifications: 0,
+    greetingName: 'User',
+    liveWealthAccrued: 0,
+    projected40YearValue: 0,
+    ytdContribution: 0,
+    liabilityCapturePercent: 0,
+    safetyGovernorStatus: 'green',
+    topMovers: [],
+    hardRailEnabled: false,
+  },
+  savings: { pockets: [], totalBalanceNgn: 0, totalBalanceUsd: 0 },
+  portfolio: { holdings: [], totalValueUsd: 0, totalInvestedUsd: 0, totalUnrealizedPnlUsd: 0, totalPnlPercentage: 0, dailyPnlUsd: 0 },
+  transactions: { transactions: [], page: 1, totalPages: 1, totalCount: 0 },
 };
 
 export default function HomeScreen() {
@@ -58,8 +59,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   
   // Dashboard state & feed from newest features
-  const [data, setData] = useState<DashboardData>(initialDashData);
-  const [data, setData] = useState<DashboardResponse>(initialDashData);
+  const [data, setData] = useState<DashboardAggregatedData>(initialDashData);
   const [liveFeed, setLiveFeed] = useState<Array<{id: string, text: string, color: string}>>([
     { id: '1', text: 'System Online | Websocket connecting...', color: Colors.dim }
   ]);
@@ -206,7 +206,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/notifications')}
             >
               <Ionicons name="notifications" size={18} color="rgba(255,255,255,.75)" />
-              {data.unreadNotifications > 0 && <View style={styles.bellBadge} />}
+              {data.dashboard.unreadNotifications > 0 && <View style={styles.bellBadge} />}
             </TouchableOpacity>
           </View>
 
@@ -214,16 +214,16 @@ export default function HomeScreen() {
           <View style={styles.portfolioArea}>
             <Text style={styles.portLabel}>TOTAL PORTFOLIO</Text>
             <Text style={styles.portVal}>
-              {balanceHidden ? '••••••••' : formatNGN(portfolioTotal)}
+              {balanceHidden ? '••••••••' : formatUSD(data.portfolio.totalValueUsd)}
             </Text>
-            <View style={[styles.portBadge, portfolioChange < 0 && styles.portBadgeDown]}>
+            <View style={[styles.portBadge, data.portfolio.totalPnlPercentage < 0 && styles.portBadgeDown]}>
               <Ionicons
-                name={portfolioChange >= 0 ? 'trending-up' : 'trending-down'}
+                name={data.portfolio.totalPnlPercentage >= 0 ? 'trending-up' : 'trending-down'}
                 size={12}
-                color={portfolioChange >= 0 ? Colors.greenBright : Colors.red}
+                color={data.portfolio.totalPnlPercentage >= 0 ? Colors.greenBright : Colors.red}
               />
-              <Text style={[styles.portBadgeText, portfolioChange < 0 && { color: Colors.red }]}>
-                {portfolioChange >= 0 ? '+' : ''}{portfolioChange}% today
+              <Text style={[styles.portBadgeText, data.portfolio.totalPnlPercentage < 0 && { color: Colors.red }]}>
+                {data.portfolio.totalPnlPercentage >= 0 ? '+' : ''}{data.portfolio.totalPnlPercentage}% today
               </Text>
             </View>
           </View>
@@ -284,7 +284,7 @@ export default function HomeScreen() {
                 <View style={styles.cardMini}>
                   <View>
                     <Text style={styles.cmLabel}>LIVE WEALTH ACCRUED</Text>
-                    <Text style={[styles.cmChange, { color: Colors.gold1 }]}>{formatNGN(data.liveWealthAccrued)}</Text>
+                    <Text style={[styles.cmChange, { color: Colors.gold1 }]}>{formatNGN(data.dashboard.liveWealthAccrued)}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.cmLabel}>LIVE RATE</Text>
@@ -352,9 +352,13 @@ export default function HomeScreen() {
                   <Text style={styles.secLink}>See All</Text>
                 </TouchableOpacity>
               </View>
-              {transactions.slice(0, 3).map(txn => (
-                <TransactionRow key={txn.id} transaction={txn} onPress={() => {}} />
-              ))}
+              {data.transactions?.transactions?.length > 0 ? (
+                data.transactions.transactions.slice(0, 3).map(txn => (
+                  <TransactionRow key={txn.id} transaction={txn} onPress={() => {}} />
+                ))
+              ) : (
+                <Text style={{ fontFamily: Fonts.bodyRegular, color: Colors.muted, marginTop: 10 }}>No recent transactions.</Text>
+              )}
             </View>
           </>
         )}
@@ -380,7 +384,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <Text style={[styles.cardBalLabel, { color: 'rgba(255,255,255,0.7)' }]}>AMOUNT SAVED</Text>
-                <Text style={styles.cardBal}>{formatNGN(totalSavings)}</Text>
+                <Text style={styles.cardBal}>{formatNGN(data.savings.totalBalanceNgn)}</Text>
               </LinearGradient>
             </View>
             <View style={styles.actionsSection}>
@@ -390,30 +394,36 @@ export default function HomeScreen() {
                   <Text style={styles.secLink}>+ New Pocket</Text>
                 </TouchableOpacity>
               </View>
-              {savingsPockets.map(pocket => {
-                const progress = pocket.currentAmount / pocket.targetAmount;
-                return (
-                  <TouchableOpacity
-                    key={pocket.id} style={styles.pocketItem} activeOpacity={0.7}
-                    onPress={() => router.push(`/(savings)/${pocket.id}`)}
-                  >
-                    <View style={styles.pocketHeader}>
-                      <Text style={styles.pocketName}>{pocket.emoji} {pocket.name}</Text>
-                      <Text style={styles.pocketAmt}>{abbreviate(pocket.currentAmount, pocket.currency)}</Text>
-                    </View>
-                    <View style={styles.progressBar}>
-                      <LinearGradient
-                        colors={pocket.name === 'Travel Fund' ? [Colors.gold1, Colors.gold2] : [Colors.g2, Colors.gsheen]}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                        style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` as any }]}
-                      />
-                    </View>
-                    <View style={styles.pocketMeta}>
-                      <Text style={styles.pocketMetaText}>{Math.round(progress * 100)}% of {abbreviate(pocket.targetAmount, pocket.currency)}</Text>
-                    </View>
-                  </TouchableOpacity>
+              {data.savings?.pockets?.length > 0 ? (
+                data.savings.pockets.map(pocket => {
+                  const progress = pocket.currentAmount / pocket.targetAmount;
+                  return (
+                    <TouchableOpacity
+                      key={pocket.id}
+                      style={styles.pocketItem}
+                      activeOpacity={0.7}
+                      onPress={() => router.push(`/(savings)/${pocket.id}`)}
+                    >
+                      <View style={styles.pocketHeader}>
+                        <Text style={styles.pocketName}>{pocket.name}</Text>
+                        <Text style={styles.pocketAmt}>{abbreviate(pocket.currentAmount, pocket.currency as 'NGN'|'USD')}</Text>
+                      </View>
+                      <View style={styles.progressBar}>
+                        <LinearGradient
+                          colors={pocket.name === 'Travel Fund' ? [Colors.gold1, Colors.gold2] : [Colors.g2, Colors.gsheen]}
+                          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                          style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%` as any }]}
+                        />
+                      </View>
+                      <View style={styles.pocketMeta}>
+                        <Text style={styles.pocketMetaText}>{Math.round(progress * 100)}% of {abbreviate(pocket.targetAmount, pocket.currency as 'NGN'|'USD')}</Text>
+                      </View>
+                    </TouchableOpacity>
                 );
-              })}
+              })
+            ) : (
+              <Text style={{ fontFamily: Fonts.bodyRegular, color: Colors.muted, marginTop: 10 }}>No savings pockets found.</Text>
+            )}
             </View>
           </>
         )}

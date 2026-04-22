@@ -12,6 +12,7 @@ import {
   Animated,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -128,25 +129,12 @@ export default function SplashScreenPage() {
           {
             transform: [{ scale: logoScale }],
             opacity: logoOpacity,
+            marginBottom: 24,
           },
         ]}
       >
-        <LinearGradient
-          colors={['#004a99', '#0066cc', '#3399ff']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.logoGem}
-        >
-          <Svg width={32} height={32} viewBox="0 0 28 28" fill="none">
-            <Path d="M14 3L22 8.5V19.5L14 25L6 19.5V8.5L14 3Z" fill="white" opacity={0.95} />
-          </Svg>
-        </LinearGradient>
+        <Image source={require('../assets/Twae-Logo.png')} style={{ width: 150, height: 50 }} resizeMode="contain" />
       </Animated.View>
-
-      {/* Brand name */}
-      <Animated.Text style={[styles.brandName, { opacity: textOpacity }]}>
-        twae
-      </Animated.Text>
 
       {/* Loading spinner */}
       <Animated.View style={[styles.loaderWrap, { opacity: textOpacity }]}>

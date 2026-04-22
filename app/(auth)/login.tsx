@@ -14,6 +14,7 @@ import {
   Animated,
   Alert,
   KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -147,12 +148,7 @@ export default function LoginScreen() {
 
           <View style={styles.header}>
             <View style={styles.logoRow}>
-              <LinearGradient colors={[Colors.g2, Colors.gsheen]} style={styles.logoGem}>
-                <Svg width={22} height={22} viewBox="0 0 22 22" fill="none">
-                  <Path d="M11 2L18 7V15L11 20L4 15V7L11 2Z" fill="white" opacity={0.9} />
-                </Svg>
-              </LinearGradient>
-              <Text style={styles.logoText}>twae</Text>
+              <Image source={require('../../assets/Twae-Logo.png')} style={{ width: 100, height: 32 }} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Welcome{'\n'}back.</Text>
             <Text style={styles.subtitle}>Sign in to your private account</Text>
