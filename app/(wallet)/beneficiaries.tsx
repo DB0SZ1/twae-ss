@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import AppHeader from '../../components/layouts/AppHeader';
 import { Colors, Shadows } from '../../constants/theme';
-import { beneficiaries } from '../../constants/mockData';
+import { apiClient } from '../../utils/apiClient';
+import { useEffect } from 'react';
 
 export default function BeneficiariesScreen() {
+  const beneficiaries: any[] = []; // TODO: Implement real beneficiaries fetch
+
   return (
     <View style={styles.container}>
       <AppHeader title="Beneficiaries" />

@@ -13,15 +13,19 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { User, CreditCard, Layers, Lock, Fingerprint, ShieldCheck, Monitor, MessageCircle, HelpCircle, Trash2, Info, ChevronRight, Palette, LogOut } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { Colors, Fonts, FontSizes, Radii, Shadows, Spacing } from '../../constants/theme';
+import { Fonts, FontSizes, Radii, Shadows, Spacing } from '../../constants/theme';
+import { useThemeColors } from '../../hooks/useThemeColors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { currentUser, portfolioTotal } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { abbreviate } = useCurrency();
+  const C = useThemeColors();
+  const { mode } = useTheme();
 
   const doLogout = () => {
     Alert.alert('Log out?', 'You will be signed out of your account on this device.', [
@@ -30,37 +34,40 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const modeLabel = mode === 'auto' ? 'System' : mode === 'dark' ? 'Dark' : 'Light';
+
   const settingsGroups = [
     {
       title: 'Account',
       items: [
-        { icon: 'person', label: 'Personal Info', sub: 'Name, DOB, address', color: Colors.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/personal-info' },
-        { icon: 'card', label: 'Linked Banks', sub: 'GTBank · 2 accounts', color: Colors.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)' },
-        { icon: 'layers', label: 'Limits & Tiers', sub: 'Tier 3 · ₦10M daily limit', color: Colors.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)' },
+        { Icon: User, label: 'Personal Info', sub: 'Name, DOB, address', color: C.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/personal-info' },
+        { Icon: CreditCard, label: 'Linked Banks', sub: 'GTBank · 2 accounts', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)' },
+        { Icon: Layers, label: 'Limits & Tiers', sub: 'Tier 3 · ₦10M daily limit', color: C.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)' },
+        { Icon: Palette, label: 'Appearance', sub: `Theme: ${modeLabel}`, color: C.g3, bg: 'rgba(74,122,255,.06)', border: 'rgba(74,122,255,.1)', route: '/(settings)/appearance' },
       ],
     },
     {
       title: 'Security',
       items: [
-        { icon: 'lock-closed', label: 'Change PIN', sub: 'Last changed 30 days ago', color: Colors.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/change-pin' },
-        { icon: 'finger-print', label: 'Biometrics', sub: 'Face ID · Enabled', color: Colors.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', toggle: true },
-        { icon: 'shield-checkmark', label: '2FA Authentication', sub: 'Authenticator app · On', color: Colors.greenBright, bg: 'rgba(74,222,128,.06)', border: 'rgba(74,222,128,.1)', route: '/(settings)/2fa' },
-        { icon: 'desktop', label: 'Active Sessions', sub: '2 devices', color: Colors.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)', route: '/(settings)/active-sessions' },
+        { Icon: Lock, label: 'Change PIN', sub: 'Last changed 30 days ago', color: C.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/change-pin' },
+        { Icon: Fingerprint, label: 'Biometrics', sub: 'Face ID · Enabled', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', toggle: true },
+        { Icon: ShieldCheck, label: '2FA Authentication', sub: 'Authenticator app · On', color: C.greenBright, bg: 'rgba(74,222,128,.06)', border: 'rgba(74,222,128,.1)', route: '/(settings)/2fa' },
+        { Icon: Monitor, label: 'Active Sessions', sub: '2 devices', color: C.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)', route: '/(settings)/active-sessions' },
       ],
     },
     {
       title: 'Support',
       items: [
-        { icon: 'chatbubbles', label: 'Live Chat', sub: 'Chat with a support agent', color: Colors.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/live-chat' },
-        { icon: 'help-circle', label: 'FAQs', sub: 'Common questions answered', color: Colors.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', route: '/(settings)/faqs' },
-        { icon: 'trash', label: 'Delete Account', sub: 'Permanently remove your data', color: Colors.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/delete-account' },
-        { icon: 'information-circle', label: 'App Version', sub: 'v1.0.0', color: Colors.dim, bg: 'rgba(0,0,0,.03)', border: 'rgba(0,0,0,.05)' },
+        { Icon: MessageCircle, label: 'Live Chat', sub: 'Chat with a support agent', color: C.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/live-chat' },
+        { Icon: HelpCircle, label: 'FAQs', sub: 'Common questions answered', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', route: '/(settings)/faqs' },
+        { Icon: Trash2, label: 'Delete Account', sub: 'Permanently remove your data', color: C.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/delete-account' },
+        { Icon: Info, label: 'App Version', sub: 'v1.0.0', color: C.dim, bg: 'rgba(0,0,0,.03)', border: 'rgba(0,0,0,.05)' },
       ],
     },
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
       <StatusBar barStyle="light-content" />
 
       {/* Profile Top */}
@@ -73,14 +80,14 @@ export default function ProfileScreen() {
         <View style={styles.decoGold} />
 
         <View style={styles.profileRow}>
-          <LinearGradient colors={[Colors.gold2, Colors.goldsheen]} style={styles.avatar}>
-            <Text style={styles.avatarText}>{currentUser.initials}</Text>
+          <LinearGradient colors={[C.gold2, C.goldsheen]} style={styles.avatar}>
+            <Text style={[styles.avatarText, { color: C.g1 }]}>{currentUser.initials}</Text>
           </LinearGradient>
           <View>
             <Text style={styles.name}>{currentUser.fullName}</Text>
             <Text style={styles.email}>{currentUser.email}</Text>
-            <View style={styles.tierPill}>
-              <Ionicons name="shield-checkmark" size={12} color="#000" />
+            <View style={[styles.tierPill, { backgroundColor: C.gold2 }]}>
+              <ShieldCheck size={12} color="#000" strokeWidth={2} />
               <Text style={styles.tierText}>{currentUser.tierLabel}</Text>
             </View>
           </View>
@@ -110,38 +117,42 @@ export default function ProfileScreen() {
       >
         {settingsGroups.map(group => (
           <View key={group.title}>
-            <Text style={styles.sectionTitle}>{group.title}</Text>
-            <View style={styles.settingsCard}>
-              {group.items.map((item, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.settingsRow, i < group.items.length - 1 && styles.settingsRowBorder]}
-                  onPress={() => item.route && router.push(item.route as any)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.iconBox, { backgroundColor: item.bg, borderColor: item.border }]}>
-                    <Ionicons name={item.icon as any} size={16} color={item.color} />
-                  </View>
-                  <View style={styles.rowInfo}>
-                    <Text style={styles.rowLabel}>{item.label}</Text>
-                    <Text style={styles.rowSub}>{item.sub}</Text>
-                  </View>
-                  {item.toggle ? (
-                    <View style={styles.toggleSwitch}>
-                      <View style={styles.toggleKnob} />
+            <Text style={[styles.sectionTitle, { color: C.muted }]}>{group.title}</Text>
+            <View style={[styles.settingsCard, { backgroundColor: C.card, borderColor: C.blackAlpha05 }]}>
+              {group.items.map((item, i) => {
+                const ItemIcon = item.Icon;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.settingsRow, i < group.items.length - 1 && [styles.settingsRowBorder, { borderBottomColor: C.blackAlpha04 }]]}
+                    onPress={() => item.route && router.push(item.route as any)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.iconBox, { backgroundColor: item.bg, borderColor: item.border }]}>
+                      <ItemIcon size={16} color={item.color} strokeWidth={2} />
                     </View>
-                  ) : (
-                    <Ionicons name="chevron-forward" size={16} color={Colors.dim} />
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <View style={styles.rowInfo}>
+                      <Text style={[styles.rowLabel, { color: C.text }]}>{item.label}</Text>
+                      <Text style={[styles.rowSub, { color: C.muted }]}>{item.sub}</Text>
+                    </View>
+                    {item.toggle ? (
+                      <TouchableOpacity onPress={item.label === 'Biometrics' ? handleBioToggle : undefined} style={[styles.toggleSwitch, (item.label === 'Biometrics' && bioEnabled) ? { backgroundColor: C.greenBright } : { backgroundColor: C.g3 }]}>
+                        <View style={[styles.toggleKnob, (item.label === 'Biometrics' && bioEnabled) ? { transform: [{ translateX: 14 }] } : {}]} />
+                      </TouchableOpacity>
+                    ) : (
+                      <ChevronRight size={16} color={C.dim} strokeWidth={2} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         ))}
 
         {/* Logout */}
         <TouchableOpacity style={styles.logoutBtn} onPress={doLogout} activeOpacity={0.7}>
-          <Text style={styles.logoutText}>Log Out</Text>
+          <LogOut size={16} color={C.red} strokeWidth={2} style={{ marginRight: 8 }} />
+          <Text style={[styles.logoutText, { color: C.red }]}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -151,7 +162,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bg,
   },
   top: {
     paddingTop: 52,
@@ -182,16 +192,11 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.gold2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
     elevation: 4,
   },
   avatarText: {
     fontSize: 22,
     fontFamily: 'BricolageGrotesque_600',
-    color: Colors.g1,
   },
   name: {
     fontFamily: 'BricolageGrotesque_600',
@@ -208,7 +213,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.gold2,
     borderRadius: Radii.pill,
     paddingVertical: 5,
     paddingHorizontal: 14,
@@ -253,17 +257,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontFamily: 'Inter_600',
-    color: Colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 8,
     marginLeft: 4,
   },
   settingsCard: {
-    backgroundColor: Colors.card,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.blackAlpha05,
     marginBottom: 14,
     overflow: 'hidden',
     ...Shadows.card,
@@ -277,7 +278,6 @@ const styles = StyleSheet.create({
   },
   settingsRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.blackAlpha04,
   },
   iconBox: {
     width: 38,
@@ -293,18 +293,15 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 14,
     fontFamily: 'Inter_500',
-    color: Colors.text,
   },
   rowSub: {
     fontSize: 11,
     fontFamily: 'Inter_400',
-    color: Colors.muted,
     marginTop: 1,
   },
   toggleSwitch: {
     width: 44,
     height: 24,
-    backgroundColor: Colors.g3,
     borderRadius: 12,
     justifyContent: 'center',
   },
@@ -324,11 +321,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     marginTop: 8,
   },
   logoutText: {
     fontSize: 15,
     fontFamily: 'BricolageGrotesque_600',
-    color: Colors.red,
   },
 });

@@ -90,7 +90,7 @@ export default function LoginScreen() {
       }
 
       const authResult = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Sign in to Verdant',
+        promptMessage: 'Sign in to Twae',
         fallbackLabel: 'Use Password',
       });
 

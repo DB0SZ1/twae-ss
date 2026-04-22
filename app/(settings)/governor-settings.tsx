@@ -22,6 +22,7 @@ export default function GovernorSettingsScreen() {
 
   // Local editing state
   const [bufferPercent, setBufferPercent] = useState('20');
+  const [liabilityCapture, setLiabilityCapture] = useState('10');
   const [dailyLimit, setDailyLimit] = useState('0');
   const [weeklyLimit, setWeeklyLimit] = useState('0');
   const [monthlyBills, setMonthlyBills] = useState('0');
@@ -39,6 +40,7 @@ export default function GovernorSettingsScreen() {
       const c = await fetchGovernorConfig();
       setConfig(c);
       setBufferPercent(String(c.buffer_percent));
+      setLiabilityCapture(String(c.liability_capture_percent || 10));
       setDailyLimit(String(c.spend_limit_daily));
       setWeeklyLimit(String(c.spend_limit_weekly));
       setMonthlyBills(String(c.estimated_monthly_bills));
@@ -59,6 +61,7 @@ export default function GovernorSettingsScreen() {
     try {
       const updated = await updateGovernorConfig({
         buffer_percent: parseFloat(bufferPercent) || 20,
+        liability_capture_percent: parseFloat(liabilityCapture) || 10,
         spend_limit_daily: parseFloat(dailyLimit) || 0,
         spend_limit_weekly: parseFloat(weeklyLimit) || 0,
         estimated_monthly_bills: parseFloat(monthlyBills) || 0,
@@ -90,6 +93,33 @@ export default function GovernorSettingsScreen() {
       <AppHeader title="Governor Settings" />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+
+        {/* Liability Capture */}
+        <Text style={styles.sectionTitle}>Capture Dynamics</Text>
+        <View style={styles.fieldCard}>
+          <Text style={styles.fieldLabel}>Liability Capture (%)</Text>
+          <Text style={styles.fieldHint}>Percentage of total unallocated incoming funds designated into the strict capture vault.</Text>
+          <TextInput
+            style={styles.numInput}
+            value={liabilityCapture}
+            onChangeText={setLiabilityCapture}
+            keyboardType="numeric"
+            placeholder="10"
+            placeholderTextColor={Colors.dim}
+          />
+          {/* Quick Presets */}
+          <View style={styles.presetRow}>
+            {[10, 15, 20, 25, 50].map(v => (
+              <TouchableOpacity
+                key={v}
+                style={[styles.preset, liabilityCapture === String(v) && styles.presetActive]}
+                onPress={() => setLiabilityCapture(String(v))}
+              >
+                <Text style={[styles.presetText, liabilityCapture === String(v) && styles.presetTextActive]}>{v}%</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         {/* Buffer % */}
         <Text style={styles.sectionTitle}>Bill Protection Buffer</Text>

@@ -2,7 +2,7 @@
  * AppInput — Text input with label, error, and icon support
  * 
  * Uses React.forwardRef so parent screens can chain focus between fields.
- * Minimal focus state change — only borderColor, no shadows/elevation.
+ * Theme-aware: uses dynamic colors from ThemeContext.
  */
 import React, { useState, forwardRef, useCallback } from 'react';
 import {
@@ -14,8 +14,9 @@ import {
   TextInputProps,
   ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Fonts, FontSizes, Radii, Spacing } from '../../constants/theme';
+import { Eye, EyeOff } from 'lucide-react-native';
+import { Fonts, FontSizes, Radii, Spacing } from '../../constants/theme';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 interface AppInputProps extends Omit<TextInputProps, 'style'> {
   label?: string;
@@ -40,6 +41,7 @@ const AppInput = forwardRef<TextInput, AppInputProps>(({
 }, ref) => {
   const [isSecure, setIsSecure] = useState(secureTextEntry);
   const [focused, setFocused] = useState(false);
+  const C = useThemeColors();
 
   const handleFocus = useCallback((e: any) => {
     setFocused(true);
@@ -53,21 +55,22 @@ const AppInput = forwardRef<TextInput, AppInputProps>(({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? <Text style={[styles.label, { color: C.muted }]}>{label}</Text> : null}
       <View
         style={[
           styles.inputWrap,
+          { backgroundColor: C.surface, borderColor: C.blackAlpha04 },
           focused && styles.inputFocused,
           error ? styles.inputError : null,
         ]}
       >
-        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
+        {prefix ? <Text style={[styles.prefix, { color: C.muted }]}>{prefix}</Text> : null}
         {leftIcon ? <View style={styles.leftIcon}>{leftIcon}</View> : null}
         <TextInput
           ref={ref}
-          style={styles.input}
-          placeholderTextColor={Colors.dim}
-          selectionColor={Colors.gsheen}
+          style={[styles.input, { color: C.text }]}
+          placeholderTextColor={C.dim}
+          selectionColor={C.gsheen}
           secureTextEntry={isSecure}
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -79,11 +82,10 @@ const AppInput = forwardRef<TextInput, AppInputProps>(({
             onPress={() => setIsSecure(prev => !prev)}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons
-              name={isSecure ? 'eye-outline' : 'eye-off-outline'}
-              size={18}
-              color={Colors.dim}
-            />
+            {isSecure
+              ? <Eye size={18} color={C.dim} strokeWidth={1.5} />
+              : <EyeOff size={18} color={C.dim} strokeWidth={1.5} />
+            }
           </TouchableOpacity>
         ) : null}
         {rightIcon && !secureTextEntry ? (
@@ -105,7 +107,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FontSizes.sm,
     fontFamily: Fonts.bodyMedium,
-    color: Colors.muted,
     marginBottom: 7,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
@@ -115,29 +116,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 52,
     borderRadius: Radii.sm,
-    backgroundColor: Colors.surface,
     borderWidth: 1.5,
-    borderColor: Colors.blackAlpha04,
     paddingHorizontal: 14,
   },
   inputFocused: {
     borderColor: 'rgba(50,100,209,0.45)',
   },
   inputError: {
-    borderColor: Colors.red,
+    borderColor: '#ef4444',
   },
   input: {
     flex: 1,
     alignSelf: 'stretch',
     fontSize: FontSizes.lg,
     fontFamily: Fonts.bodyRegular,
-    color: Colors.text,
     paddingVertical: 0,
     paddingHorizontal: 0,
   },
   prefix: {
     fontSize: FontSizes.base,
-    color: Colors.muted,
     fontFamily: Fonts.bodyRegular,
     marginRight: 8,
   },
@@ -153,7 +150,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: FontSizes.xs,
-    color: Colors.red,
+    color: '#ef4444',
     marginTop: 5,
     paddingLeft: 4,
     fontFamily: Fonts.bodyRegular,

@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, StatusBar } from 'react-native';
 import { useFonts } from 'expo-font';
 import {
   BricolageGrotesque_300Light,
@@ -22,9 +22,41 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '../constants/theme';
 import OfflineBanner from '../components/layouts/OfflineBanner';
+import TwaeLoader from '../components/atoms/TwaeLoader';
+import { ThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { useThemeColors } from '../hooks/useThemeColors';
 import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync();
+
+function AppContent() {
+  const C = useThemeColors();
+  const { isDark } = useTheme();
+
+  return (
+    <>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <OfflineBanner />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          contentStyle: { backgroundColor: C.bg },
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(onboarding)" />
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(savings)" />
+        <Stack.Screen name="(invest)" />
+        <Stack.Screen name="(wallet)" />
+        <Stack.Screen name="(settings)" />
+        <Stack.Screen name="notifications" />
+      </Stack>
+    </>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -47,34 +79,19 @@ export default function RootLayout() {
   if (!fontsLoaded) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={Colors.g3} />
+        <TwaeLoader size={56} />
       </View>
     );
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <OfflineBanner />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: Colors.bg },
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(savings)" />
-          <Stack.Screen name="(invest)" />
-          <Stack.Screen name="(wallet)" />
-          <Stack.Screen name="(settings)" />
-          <Stack.Screen name="notifications" />
-        </Stack>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <AppContent />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }
 

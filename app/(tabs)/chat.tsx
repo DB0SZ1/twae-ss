@@ -22,7 +22,7 @@ export default function ChatScreen() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: "Hello! I am Verdant, your Unified Platform Agent. I can explain your recent investments, analyze market conditions, or help you with support tickets. How can I assist you today?"
+      content: "Hello! I am Twae, your Unified Platform Agent. I can explain your recent investments, analyze market conditions, or help you with support tickets. How can I assist you today?"
     }
   ]);
   const [input, setInput] = useState('');
@@ -63,7 +63,7 @@ export default function ChatScreen() {
         body: JSON.stringify({ query: userMsg, history })
       });
 
-      if (!response.ok) throw new Error('Failed to reach Verdant AI');
+      if (!response.ok) throw new Error('Failed to reach Twae AI');
 
       const data = await response.json();
       
@@ -123,7 +123,7 @@ export default function ChatScreen() {
         start={{ x: 0.3, y: 0 }} end={{ x: 0.7, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <Text style={styles.headerTitle}>Verdant Insight</Text>
+        <Text style={styles.headerTitle}>Twae Insight</Text>
         <Text style={styles.headerSub}>AI Financial Analyst & Support</Text>
       </LinearGradient>
 

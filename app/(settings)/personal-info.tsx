@@ -4,8 +4,12 @@ import AppHeader from '../../components/layouts/AppHeader';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
+import { useEffect } from 'react';
+import { apiClient } from '../../utils/apiClient';
 
 export default function PersonalInfoScreen() {
+  const [user, setUser] = useState<any>({});
+  useEffect(() => { apiClient<any>('/user/me').then(setUser).catch(console.error); }, []);
   const [data, setData] = useState({
     name: 'Adaugo Okonkwo',
     phone: '+234 803 123 4567',

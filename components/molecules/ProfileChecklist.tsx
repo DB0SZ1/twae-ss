@@ -110,13 +110,13 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'BricolageGrotesque_600',
     fontSize: 16,
-    color: '#fff',
+    color: Colors.text,
     marginBottom: 2,
   },
   subtitle: {
     fontFamily: 'Inter_400',
     fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
+    color: Colors.muted,
   },
   progressCircle: {
     width: 42,
@@ -175,10 +175,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Inter_500',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
+    color: Colors.text,
   },
   stepLabelDone: {
     textDecorationLine: 'line-through',
-    color: 'rgba(255,255,255,0.4)',
+    color: Colors.muted,
   },
 });

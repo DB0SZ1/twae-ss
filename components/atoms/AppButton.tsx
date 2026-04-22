@@ -1,18 +1,20 @@
 /**
  * AppButton — Primary, secondary, ghost, and danger button variants
+ * Theme-aware: uses dynamic colors from ThemeContext.
  */
 import React from 'react';
 import {
   TouchableOpacity,
   Text,
-  ActivityIndicator,
   StyleSheet,
   ViewStyle,
   TextStyle,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Fonts, FontSizes, Radii, Spacing } from '../../constants/theme';
+import { Fonts, Radii, Spacing } from '../../constants/theme';
+import { useThemeColors } from '../../hooks/useThemeColors';
+import TwaeLoader from './TwaeLoader';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -42,6 +44,7 @@ export default function AppButton({
   size = 'lg',
 }: AppButtonProps) {
   const isDisabled = disabled || loading;
+  const C = useThemeColors();
 
   const heights = { sm: 40, md: 48, lg: 54 };
   const fontSizes = { sm: 13, md: 14, lg: 16 };
@@ -55,7 +58,7 @@ export default function AppButton({
         style={[fullWidth && { width: '100%' }, style]}
       >
         <LinearGradient
-          colors={[Colors.g2, Colors.g3]}
+          colors={[C.g2, C.g3]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
@@ -65,7 +68,7 @@ export default function AppButton({
           ]}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <TwaeLoader size={22} />
           ) : (
             <View style={styles.content}>
               {icon && <View style={styles.iconLeft}>{icon}</View>}
@@ -82,16 +85,16 @@ export default function AppButton({
 
   const variantStyles: Record<string, { bg: ViewStyle; text: TextStyle }> = {
     secondary: {
-      bg: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.blackAlpha05 },
-      text: { color: Colors.text },
+      bg: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.blackAlpha05 },
+      text: { color: C.text },
     },
     ghost: {
       bg: { backgroundColor: 'transparent' },
-      text: { color: Colors.muted },
+      text: { color: C.muted },
     },
     danger: {
       bg: { backgroundColor: 'rgba(239,68,68,.06)', borderWidth: 1, borderColor: 'rgba(239,68,68,.1)' },
-      text: { color: Colors.red },
+      text: { color: C.red },
     },
   };
 
@@ -112,7 +115,7 @@ export default function AppButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={Colors.muted} size="small" />
+        <TwaeLoader size={20} />
       ) : (
         <View style={styles.content}>
           {icon && <View style={styles.iconLeft}>{icon}</View>}

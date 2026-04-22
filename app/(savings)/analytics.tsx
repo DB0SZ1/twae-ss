@@ -2,10 +2,19 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import AppHeader from '../../components/layouts/AppHeader';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { savingsPockets, totalSavings } from '../../constants/mockData';
+import { apiClient } from '../../utils/apiClient';
+import { useEffect, useState } from 'react';
 import { useCurrency } from '../../hooks/useCurrency';
 
 export default function SavingsAnalyticsScreen() {
+  const [savingsPockets, setSavingsPockets] = useState<any[]>([]);
+  const [totalSavings, setTotalSavings] = useState(0);
+  useEffect(() => {
+    apiClient<any>('/savings/plans').then(res => {
+      setSavingsPockets(res.pockets || []);
+      setTotalSavings(res.totalBalanceNgn || 0);
+    }).catch(console.error);
+  }, []);
   const { formatNGN } = useCurrency();
   return (
     <View style={styles.container}>

@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Tabs } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { apiClient } from '../../utils/apiClient';
 import {
   View,
   StyleSheet,
@@ -23,7 +26,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const TAB_CONFIG = [
   { name: 'index',        label: 'Home',     Icon: LayoutGrid     },
   { name: 'transactions', label: 'Activity', Icon: ArrowLeftRight  },
-  { name: 'chat',         label: 'Verdant',  Icon: MessageCircle  },
+  { name: 'chat',         label: 'Twae',  Icon: MessageCircle  },
   { name: 'invest',       label: 'Invest',   Icon: BarChart2       },
   { name: 'profile',      label: 'Profile',  Icon: CircleUser      },
 ];
@@ -253,6 +256,33 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 }
 
 export default function TabLayout() {
+  useEffect(() => {
+    async function registerPush() {
+      if (!Device.isDevice) return;
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync();
+        await apiClient('/notifications/push-token', {
+          method: 'POST',
+          body: JSON.stringify({
+            device_id: Device.osBuildId || 'dev-unknown',
+            fcm_token: tokenData.data,
+          })
+        });
+      } catch (err) {
+        console.warn('Push registration failed:', err);
+      }
+    }
+    registerPush();
+  }, []);
+
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}

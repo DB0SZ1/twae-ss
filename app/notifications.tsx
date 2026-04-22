@@ -11,7 +11,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, Radii } from '../constants/theme';
-import { notifications, Notification } from '../constants/mockData';
+import { apiClient } from '../utils/apiClient';
+import { useEffect } from 'react';
 
 const typeConfig: Record<string, { icon: string; color: string; bg: string }> = {
   transaction: { icon: 'swap-horizontal', color: '#38bdf8', bg: 'rgba(56,189,248,0.12)' },
@@ -26,7 +27,8 @@ const typeConfig: Record<string, { icon: string; color: string; bg: string }> = 
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const [items, setItems] = useState(notifications);
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => { apiClient<any>('/notifications').then(res => setItems(res.notifications || [])).catch(console.error); }, []);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   const filtered = filter === 'unread' ? items.filter(n => !n.read) : items;

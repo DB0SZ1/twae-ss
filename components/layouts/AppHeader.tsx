@@ -1,6 +1,7 @@
 /**
  * AppHeader — Back button, title, and right action slot
  * Automatically accounts for safe area top inset (notch, dynamic island, status bar).
+ * Theme-aware: uses dynamic colors from ThemeContext.
  */
 import React from 'react';
 import {
@@ -9,8 +10,9 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Fonts, FontSizes, Spacing } from '../../constants/theme';
+import { ChevronLeft } from 'lucide-react-native';
+import { Fonts, FontSizes, Spacing } from '../../constants/theme';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,6 +36,7 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const C = useThemeColors();
 
   const handleBack = () => {
     if (onBack) {
@@ -47,19 +50,19 @@ export default function AppHeader({
     <View
       style={[
         styles.container,
-        transparent && styles.transparent,
+        { backgroundColor: transparent ? 'transparent' : C.bg },
         safeTop && { paddingTop: insets.top + Spacing.md },
       ]}
     >
       <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
-        <Ionicons
-          name="chevron-back"
+        <ChevronLeft
           size={24}
-          color={lightText ? '#fff' : Colors.text}
+          color={lightText ? '#fff' : C.text}
+          strokeWidth={2}
         />
       </TouchableOpacity>
       <Text
-        style={[styles.title, lightText && styles.titleLight]}
+        style={[styles.title, { color: lightText ? '#fff' : C.text }]}
         numberOfLines={1}
       >
         {title}
@@ -78,10 +81,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.bg,
-  },
-  transparent: {
-    backgroundColor: 'transparent',
   },
   backBtn: {
     width: 40,
@@ -95,10 +94,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: FontSizes['2xl'],
     fontFamily: Fonts.headingSemiBold,
-    color: Colors.text,
-  },
-  titleLight: {
-    color: '#fff',
   },
   right: {
     width: 40,

@@ -7,6 +7,7 @@ export interface GovernorConfig {
   id: string;
   is_enabled: boolean;
   buffer_percent: number;
+  liability_capture_percent: number;
   hard_rail_enabled: boolean;
   spend_limit_daily: number;
   spend_limit_weekly: number;

@@ -61,6 +61,17 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
 // ── KYC Endpoints ──────────────────────────────────
 
 /**
+ * GET /kyc/requirements — Fetch dynamic dependency constraints (BVN / SSN)
+ */
+export async function getKYCRequirements(): Promise<string[]> {
+  try {
+    return await apiCall<string[]>('/kyc/requirements');
+  } catch {
+    return ['passport', 'proof_of_address'];
+  }
+}
+
+/**
  * POST /kyc/submit-bvn — Submit BVN for Nigerian users
  */
 export async function submitBVN(userId: string, bvn: string): Promise<{ success: boolean; message: string }> {

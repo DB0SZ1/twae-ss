@@ -2,8 +2,10 @@
  * useAuth — Auth state, token management, session control
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { currentUser, User } from '../constants/mockData';
 
+
+export interface User { id: string; firstName: string; email: string; initials: string; fullName: string; tierLabel: string; }
+const currentUser: User = { id: 'x', firstName: 'User', email: 'test@twae.app', initials: 'U', fullName: 'User Account', tierLabel: 'Tier 1' };
 const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 minutes for demo
 
 export function useAuth() {

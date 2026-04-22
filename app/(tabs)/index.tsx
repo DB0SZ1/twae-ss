@@ -32,11 +32,11 @@ import {
   totalSavings,
 } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
-import { fetchDashboardData, DashboardData } from '../../controllers/dashboardController';
+import { fetchDashboardData, DashboardResponse } from '../../controllers/dashboardController';
 
 const { width } = Dimensions.get('window');
 
-const initialDashData: DashboardData = {
+const initialDashData: DashboardResponse = {
   ngnBalance: 0,
   usdBalance: 0,
   unreadNotifications: 0,
@@ -59,6 +59,7 @@ export default function HomeScreen() {
   
   // Dashboard state & feed from newest features
   const [data, setData] = useState<DashboardData>(initialDashData);
+  const [data, setData] = useState<DashboardResponse>(initialDashData);
   const [liveFeed, setLiveFeed] = useState<Array<{id: string, text: string, color: string}>>([
     { id: '1', text: 'System Online | Websocket connecting...', color: Colors.dim }
   ]);

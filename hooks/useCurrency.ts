@@ -2,7 +2,7 @@
  * useCurrency — Format and convert between NGN and USD
  */
 import { useCallback } from 'react';
-import { exchangeRate } from '../constants/mockData';
+const exchangeRate = { ngnToUsd: 1/1560.50, usdToNgn: 1560.50 };
 
 export function useCurrency() {
   const formatNGN = useCallback((amount: number, showSymbol = true): string => {

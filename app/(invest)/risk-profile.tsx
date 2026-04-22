@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii } from '../../constants/theme';
-import { riskProfileQuestions } from '../../constants/mockData';
+const riskProfileQuestions: any[] = [];
 import { submitRiskProfile } from '../../controllers/investController';
 
 export default function RiskProfileScreen() {

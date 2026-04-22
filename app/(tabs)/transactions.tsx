@@ -1,26 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar, TextInput, FlatList, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import TransactionRow from '../../components/molecules/TransactionRow';
 import EmptyState from '../../components/molecules/EmptyState';
 import { Colors, Radii, Shadows } from '../../constants/theme';
-import { transactions } from '../../constants/mockData';
+import { apiClient } from '../../utils/apiClient';
+import { TransactionListResponse, TransactionResponse } from '../../controllers/dashboardController';
 
 const FILTERS = ['All', 'Fund', 'Send', 'Capture', 'Invest'];
 
-type Transaction = typeof transactions[0];
+
+type Transaction = TransactionResponse & { dateStr: string; displayName: string };
+
+function mapTxn(t: TransactionResponse): Transaction {
+  const d = new Date(t.createdAt);
+  return {
+    ...t,
+    dateStr: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    displayName: t.partnerName || t.description || 'Transaction',
+  };
+}
+
 
 export default function TransactionsScreen() {
+  
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetail, setShowDetail] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
   const [page, setPage] = useState(1);
+  
+  const [txns, setTxns] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = transactions.filter(txn => {
-    const matchFilter = activeFilter === 'All' ? true : activeFilter === 'Fund' ? txn.type === 'credit' : activeFilter === 'Send' ? txn.type === 'debit' : activeFilter === 'Capture' ? txn.category === 'savings' : activeFilter === 'Invest' ? txn.category === 'investment' : true;
-    const matchSearch = searchQuery.length === 0 || txn.name.toLowerCase().includes(searchQuery.toLowerCase()) || txn.amount.toString().includes(searchQuery);
+  useEffect(() => {
+    apiClient<TransactionListResponse>('/wallet/transactions?per_page=50')
+      .then(res => setTxns(res.transactions.map(mapTxn)))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+
+  const filtered = txns.filter(txn => {
+    const matchFilter = activeFilter === 'All' ? true : activeFilter === 'Fund' ? txn.type === 'credit' : activeFilter === 'Send' ? txn.type === 'debit' : activeFilter === 'Capture' ? txn.type === 'savings' : activeFilter === 'Invest' ? txn.type === 'investment' : true;
+    const matchSearch = searchQuery.length === 0 || txn.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || txn.amount.toString().includes(searchQuery);
     return matchFilter && matchSearch;
   });
 
@@ -28,8 +52,8 @@ export default function TransactionsScreen() {
     const groups: { date: string; data: Transaction[] }[] = [];
     const map: Record<string, Transaction[]> = {};
     txns.forEach(t => {
-      if (!map[t.date]) { map[t.date] = []; groups.push({ date: t.date, data: map[t.date] }); }
-      map[t.date].push(t);
+      if (!map[t.dateStr]) { map[t.dateStr] = []; groups.push({ date: t.dateStr, data: map[t.dateStr] }); }
+      map[t.dateStr].push(t);
     });
     return groups;
   };
@@ -97,15 +121,15 @@ export default function TransactionsScreen() {
                 <View style={[styles.detailIconBox, { backgroundColor: selectedTxn.type === 'credit' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)' }]}>
                   <Ionicons name={selectedTxn.type === 'credit' ? 'arrow-down' : 'arrow-up'} size={28} color={selectedTxn.type === 'credit' ? Colors.greenBright : Colors.red} />
                 </View>
-                <Text style={styles.detailName}>{selectedTxn.name}</Text>
+                <Text style={styles.detailName}>{selectedTxn.displayName}</Text>
                 <Text style={[styles.detailAmount, { color: selectedTxn.type === 'credit' ? Colors.greenBright : Colors.red }]}>
                   {selectedTxn.type === 'credit' ? '+' : '-'}₦{Math.abs(selectedTxn.amount).toLocaleString()}
                 </Text>
-                <Text style={styles.detailDate}>{selectedTxn.date}</Text>
+                <Text style={styles.detailDate}>{selectedTxn.dateStr}</Text>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Category</Text>
-                  <Text style={styles.detailValue}>{selectedTxn.category}</Text>
+                  <Text style={styles.detailValue}>{selectedTxn.type}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Status</Text>

@@ -56,6 +56,36 @@ export const Colors = {
   blackAlpha40: 'rgba(0,0,0,.4)',
 } as const;
 
+// ── LIGHT PALETTE ──────────────────────────────────
+export const LightColors = { ...Colors };
+
+// ── DARK PALETTE ───────────────────────────────────
+export const DarkColors = {
+  ...Colors,
+
+  // ── Surface & Background ──
+  bg: '#0d1117',
+  surface: '#161b22',
+  card: '#1c2128',
+  cardHighlight: '#2d333b',
+
+  // ── Text ──
+  text: '#e6edf3',
+  muted: '#8b949e',
+  dim: '#484f58',
+
+  // ── Auth Orb Colors ──
+  orbGreen: 'rgba(0,180,92,.4)',
+  orbGold: 'rgba(220,160,0,.25)',
+
+  // ── Transparent Variants (inverted) ──
+  blackAlpha04: 'rgba(255,255,255,.04)',
+  blackAlpha05: 'rgba(255,255,255,.06)',
+  blackAlpha15: 'rgba(255,255,255,.12)',
+  blackAlpha25: 'rgba(255,255,255,.2)',
+  blackAlpha40: 'rgba(255,255,255,.35)',
+} as const;
+
 export const Gradients = {
   primary: ['#3264d1', '#4a7aff'],
   primaryFull: ['#1a3575', '#3264d1', '#4a7aff'],

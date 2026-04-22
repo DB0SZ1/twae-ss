@@ -12,20 +12,17 @@ import AppHeader from '../../components/layouts/AppHeader';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Radii } from '../../constants/theme';
-import { submitBVN, submitNIN, submitSSN, submitPassport, checkKYCStatus, getTierInfo } from '../../controllers/kycController';
+import { submitBVN, submitNIN, submitSSN, submitPassport, checkKYCStatus, getTierInfo, getKYCRequirements } from '../../controllers/kycController';
 
 const IS_DEV = process.env.EXPO_PUBLIC_APP_ENV === 'development' || __DEV__;
 
-type NGDocType = 'bvn' | 'nin';
-type USDocType = 'ssn' | 'passport';
-
 export default function KYCIdentityScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ userId?: string; countryCode?: string }>();
-  const isUS = params.countryCode === 'US';
+  const params = useLocalSearchParams<{ userId?: string }>();
 
-  const [ngType, setNgType] = useState<NGDocType>('bvn');
-  const [usType, setUsType] = useState<USDocType>('ssn');
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [activeDoc, setActiveDoc] = useState<string>('bvn');
+  
   const [value, setValue] = useState('');
   const [maskedDisplay, setMaskedDisplay] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,58 +37,61 @@ export default function KYCIdentityScreen() {
 
   useEffect(() => {
     Animated.timing(fadeIn, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-    // Animate progress bar to step 1/3
     Animated.timing(progressWidth, { toValue: 33, duration: 600, useNativeDriver: false }).start();
+    
+    getKYCRequirements().then(reqs => {
+      setRequirements(reqs);
+      if (reqs.length > 0) setActiveDoc(reqs[0]);
+    });
   }, []);
 
-  // Mask input (show only last 4 digits)
   const handleValueChange = (text: string) => {
     const digits = text.replace(/\D/g, '');
     setValue(digits);
-
     if (digits.length > 4) {
-      const masked = '•'.repeat(digits.length - 4) + digits.slice(-4);
-      setMaskedDisplay(masked);
+      setMaskedDisplay('•'.repeat(digits.length - 4) + digits.slice(-4));
     } else {
       setMaskedDisplay(digits);
     }
   };
 
-  // Get max length based on doc type
   const getMaxLength = () => {
-    if (isUS) return usType === 'ssn' ? 9 : 12;
-    return 11; // BVN and NIN are both 11 digits
+    if (activeDoc === 'ssn') return 9;
+    if (activeDoc === 'passport') return 12;
+    return 11;
   };
 
   const getPlaceholder = () => {
-    if (isUS) return usType === 'ssn' ? 'XXX-XX-XXXX' : 'Passport number';
-    return ngType === 'bvn' ? '22XXXXXXXXX' : '000XXXXXXXX';
+    if (activeDoc === 'ssn') return 'XXX-XX-XXXX';
+    if (activeDoc === 'passport') return 'Passport number';
+    if (activeDoc === 'nin') return '000XXXXXXXX';
+    return '22XXXXXXXXX';
   };
 
   const getLabel = () => {
-    if (isUS) return usType === 'ssn' ? 'Social Security Number' : 'Passport Number';
-    return ngType === 'bvn' ? 'Bank Verification Number' : 'National ID Number';
+    if (activeDoc === 'ssn') return 'Social Security Number';
+    if (activeDoc === 'passport') return 'Passport Number';
+    if (activeDoc === 'nin') return 'National ID Number';
+    if (activeDoc === 'proof_of_address') return 'Proof of Address';
+    return 'Bank Verification Number';
   };
 
   const handleSubmit = async () => {
     const digits = value.replace(/\D/g, '');
-    if (digits.length < (isUS && usType === 'ssn' ? 9 : isUS ? 6 : 11)) return;
+    let minLen = 11;
+    if (activeDoc === 'ssn') minLen = 9;
+    if (activeDoc === 'passport') minLen = 6;
+    if (digits.length < minLen) return;
 
     setLoading(true);
     try {
       let result;
-      if (isUS) {
-        result = usType === 'ssn'
-          ? await submitSSN(params.userId || '', digits)
-          : await submitPassport(params.userId || '', digits);
-      } else {
-        result = ngType === 'bvn'
-          ? await submitBVN(params.userId || '', digits)
-          : await submitNIN(params.userId || '', digits);
-      }
+      if (activeDoc === 'ssn') result = await submitSSN(params.userId || '', digits);
+      else if (activeDoc === 'passport') result = await submitPassport(params.userId || '', digits);
+      else if (activeDoc === 'nin') result = await submitNIN(params.userId || '', digits);
+      else result = await submitBVN(params.userId || '', digits);
 
       if (result.success) {
-        // Start polling for verification status
         setPolling(true);
         setVerificationStatus('Processing your verification…');
         pollStatus();
@@ -162,37 +162,22 @@ export default function KYCIdentityScreen() {
         <Animated.View style={{ opacity: fadeIn }}>
           <Text style={styles.title}>Verify your identity</Text>
           <Text style={styles.sub}>
-            {isUS
-              ? 'We need your SSN or passport to comply with federal regulations.'
-              : 'We need your BVN or NIN to verify your identity and comply with CBN regulations.'}
+            We require official identity documents to comply with federal regulations and secure your account.
           </Text>
 
           {/* Type Toggle */}
           <View style={styles.toggleWrap}>
-            {isUS
-              ? (['ssn', 'passport'] as USDocType[]).map(t => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.toggleBtn, usType === t && styles.toggleBtnActive]}
-                    onPress={() => { setUsType(t); setValue(''); setMaskedDisplay(''); }}
-                  >
-                    <Text style={[styles.toggleText, usType === t && styles.toggleTextActive]}>
-                      {t.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-              : (['bvn', 'nin'] as NGDocType[]).map(t => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.toggleBtn, ngType === t && styles.toggleBtnActive]}
-                    onPress={() => { setNgType(t); setValue(''); setMaskedDisplay(''); }}
-                  >
-                    <Text style={[styles.toggleText, ngType === t && styles.toggleTextActive]}>
-                      {t.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))
-            }
+            {requirements.map(t => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.toggleBtn, activeDoc === t && styles.toggleBtnActive]}
+                onPress={() => { setActiveDoc(t); setValue(''); setMaskedDisplay(''); }}
+              >
+                <Text style={[styles.toggleText, activeDoc === t && styles.toggleTextActive]}>
+                  {t.toUpperCase().replace('_', ' ')}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           <AppInput
@@ -200,7 +185,7 @@ export default function KYCIdentityScreen() {
             value={value}
             onChangeText={handleValueChange}
             placeholder={getPlaceholder()}
-            keyboardType={isUS && usType === 'passport' ? 'default' : 'number-pad'}
+            keyboardType={activeDoc === 'passport' || activeDoc === 'proof_of_address' ? 'default' : 'number-pad'}
             maxLength={getMaxLength()}
           />
 
@@ -256,7 +241,7 @@ export default function KYCIdentityScreen() {
             label="Verify"
             onPress={handleSubmit}
             loading={loading || polling}
-            disabled={value.length < (isUS && usType === 'ssn' ? 9 : isUS ? 6 : 11)}
+            disabled={value.length < (activeDoc === 'ssn' ? 9 : activeDoc === 'passport' ? 6 : 11)}
           />
 
           {/* Dev-mode skip */}

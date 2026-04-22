@@ -4,7 +4,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Transaction } from '../../constants/mockData';
+import { TransactionResponse as Transaction } from '../../controllers/dashboardController';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Colors, Fonts, FontSizes, Radii, Spacing } from '../../constants/theme';
 
@@ -26,7 +26,7 @@ const categoryIcons: Record<string, { name: string; color: string }> = {
 export default function TransactionRow({ transaction, onPress }: TransactionRowProps) {
   const { format } = useCurrency();
   const isDebit = transaction.type === 'debit';
-  const icon = categoryIcons[transaction.category] || categoryIcons.transfer;
+  const icon = categoryIcons[transaction.category || ''] || categoryIcons.transfer;
 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
@@ -38,7 +38,7 @@ export default function TransactionRow({ transaction, onPress }: TransactionRowP
         />
       </View>
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>{transaction.name}</Text>
+        <Text style={styles.name} numberOfLines={1}>{transaction.name || transaction.partnerName || 'Transaction'}</Text>
         <Text style={styles.sub} numberOfLines={1}>{transaction.description}</Text>
       </View>
       <View style={styles.right}>
