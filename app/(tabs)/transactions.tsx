@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import TransactionRow from '../../components/molecules/TransactionRow';
 import EmptyState from '../../components/molecules/EmptyState';
 import { Colors, Radii, Shadows } from '../../constants/theme';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import { apiClient } from '../../utils/apiClient';
 import { TransactionListResponse, TransactionResponse } from '../../controllers/dashboardController';
 
@@ -24,6 +25,7 @@ function mapTxn(t: TransactionResponse): Transaction {
 
 
 export default function TransactionsScreen() {
+  const C = useThemeColors();
   
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,7 +67,7 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
       <StatusBar barStyle="light-content" />
 
       {/* ── Blue Header ── */}

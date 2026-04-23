@@ -11,7 +11,9 @@ import PINPad from '../../components/atoms/PINPad';
 import AppButton from '../../components/atoms/AppButton';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/theme';
-import { createPIN, enrollBiometric } from '../../controllers/authController';
+import { createPIN, enrollBiometric, getOrCreateDeviceId, updateProfile } from '../../controllers/authController';
+import { storage as SecureStore } from '../../utils/storage';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 export default function ConfirmPINScreen() {
   const router = useRouter();
@@ -88,9 +90,40 @@ export default function ConfirmPINScreen() {
 
   const handleBiometricEnroll = async () => {
     try {
-      await enrollBiometric(userId || '', 'device-id-stub', Platform.OS === 'ios' ? 'face' : 'fingerprint');
-    } catch {
-      // Non-critical, continue
+      // 1. Check hardware availability
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!hasHardware || !isEnrolled) {
+        Alert.alert('Unsupported', 'Your device does not have biometrics set up. Skipping...');
+        navigateNext();
+        return;
+      }
+
+      // 2. Trigger native OS biometric scanner
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Verify identity to enable Biometric Login',
+        fallbackLabel: 'Use PIN',
+      });
+      if (!authResult.success) {
+        // User cancelled — just skip
+        navigateNext();
+        return;
+      }
+
+      // 3. Call backend to enroll
+      const devId = await getOrCreateDeviceId();
+      const biometricType: 'face' | 'fingerprint' = Platform.OS === 'ios' ? 'face' : 'fingerprint';
+      const result = await enrollBiometric(devId, biometricType);
+
+      if (result.success && result.biometricSecret) {
+        // 4. Store secret for future biometric logins (HMAC signing)
+        await SecureStore.setItemAsync('twa_biometric_secret', result.biometricSecret);
+        // 5. Sync profile flag so checklist reflects completion
+        await updateProfile({ biometric_enrolled: true });
+      }
+    } catch (err: any) {
+      console.warn('Biometric enrollment failed:', err?.message || err);
+      // Non-critical, continue onboarding
     }
     navigateNext();
   };

@@ -1,28 +1,74 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+/**
+ * Twae — Linked Bank Accounts (real API)
+ * GET /bank/linked for listing, navigates to bank-link for adding.
+ */
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { Colors, Shadows } from '../../constants/theme';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
-import { Colors, Shadows } from '../../constants/theme';
+import { getLinkedBanks, LinkedBank } from '../../controllers/bankController';
+import { getUserProfile } from '../../controllers/authController';
+import { useRouter } from 'expo-router';
 
 export default function BankAccountsScreen() {
-  const banks = [
-    { name: 'GTBank', acct: '0123456789', type: 'Savings', active: true },
-    { name: 'GTBank', acct: '0987654321', type: 'Current', active: true },
-  ];
+  const router = useRouter();
+  const [banks, setBanks] = useState<LinkedBank[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [countryCode, setCountryCode] = useState('NG');
+
+  useEffect(() => {
+    async function fetchBanks() {
+      try {
+        const user = await getUserProfile();
+        setCountryCode(user.country_code || 'NG');
+        const b = await getLinkedBanks(user.id);
+        setBanks(b);
+      } catch (err) {
+        console.warn('Banks fetch error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchBanks();
+  }, []);
 
   return (
     <View style={styles.container}>
       <AppHeader title="Linked Banks" />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.g3} />
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={styles.body}>
-        {banks.map((b, i) => (
-          <View key={i} style={styles.card}>
-            <View style={styles.row}><Text style={styles.name}>{b.name}</Text><View style={styles.activeBadge}><Text style={styles.activeText}>Active</Text></View></View>
-            <Text style={styles.acct}>{b.acct} · {b.type}</Text>
+        {banks.length === 0 ? (
+          <View style={{ alignItems: 'center', marginVertical: 30 }}>
+            <Text style={{ fontFamily: 'Inter_400', fontSize: 13, color: Colors.muted }}>No bank accounts linked yet.</Text>
           </View>
-        ))}
-        <AppButton label="+ Link New Bank" onPress={() => {}} variant="secondary" style={{ marginTop: 12 }} />
+        ) : (
+          banks.map((b) => (
+            <View key={b.id} style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.name}>{b.bankName}</Text>
+                {b.isPrimary && (
+                  <View style={styles.activeBadge}>
+                    <Text style={styles.activeText}>Primary</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.acct}>···· {b.accountMask} · {b.accountName}</Text>
+            </View>
+          ))
+        )}
+        <AppButton
+          label="+ Link New Bank"
+          onPress={() => router.push({ pathname: '/(onboarding)/bank-link', params: { countryCode } })}
+          variant="secondary"
+          style={{ marginTop: 12 }}
+        />
       </ScrollView>
+      )}
     </View>
   );
 }

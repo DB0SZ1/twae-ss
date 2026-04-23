@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, ScrollView, Text, StyleSheet } from 'react-native';
 import AppHeader from '../../components/layouts/AppHeader';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function TwoFactorAuthScreen() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  const handleEnable = () => {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      router.back();
+    }, 1500);
+  };
+
   return (
     <View style={styles.container}>
       <AppHeader title="Two-Factor Auth" />
@@ -23,7 +35,7 @@ export default function TwoFactorAuthScreen() {
           <Text style={styles.infoStep}>3. Enter the 6-digit code to confirm.</Text>
         </View>
 
-        <AppButton label="Enable 2FA" onPress={() => {}} style={{marginTop: 30}} />
+        <AppButton label="Enable 2FA" onPress={handleEnable} loading={loading} style={{marginTop: 30}} />
       </ScrollView>
     </View>
   );

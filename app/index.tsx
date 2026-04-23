@@ -133,7 +133,7 @@ export default function SplashScreenPage() {
           },
         ]}
       >
-        <Image source={require('../assets/Twae-Logo.png')} style={{ width: 150, height: 50 }} resizeMode="contain" />
+        <Image source={require('../assets/Twae-Logo.png')} style={{ width: 320, height: 110 }} resizeMode="contain" />
       </Animated.View>
 
       {/* Loading spinner */}

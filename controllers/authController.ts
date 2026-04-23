@@ -21,6 +21,8 @@ export interface RegisterPayload {
   osName?: string;
   osVersion?: string;
   referralCode?: string;
+  streetAddress?: string;
+  city?: string;
 }
 
 export interface RegisterResponse {
@@ -53,24 +55,81 @@ export interface AppConfig {
   kycRequiredForTransfer: boolean;
 }
 
+export interface UserProfileResponse {
+  id: string;
+  role: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  country_code: string;
+  tier: number;
+  kyc_status: string;
+  biometric_enrolled: boolean;
+  is_email_verified: boolean;
+  is_phone_verified: boolean;
+  has_pin?: boolean;
+  two_fa_enabled: boolean;
+  bank_link_status: string;
+  pref_push: boolean;
+  pref_email: boolean;
+  pref_sms: boolean;
+  street_address: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+}
+
+export interface UpdateProfilePayload {
+  fullName?: string;
+  phone?: string;
+  streetAddress?: string;
+  city?: string;
+  stateProvince?: string;
+  postalCode?: string;
+  prefPush?: boolean;
+  prefEmail?: boolean;
+  prefSms?: boolean;
+  biometric_enrolled?: boolean;
+}
+
+export interface SessionInfo {
+  id: string;
+  device_name: string;
+  os_name: string;
+  last_active: string;
+  is_current: boolean;
+}
+
 import { apiClient, setAuthToken } from '../utils/apiClient';
 import { storage as SecureStore } from '../utils/storage';
 
 // ── Persistent User Context (SecureStore) ──────────
 const STORE_KEYS = {
-  USER_ID: 'twae_current_user_id',
-  USER_PHONE: 'twae_current_user_phone',
+  USER_ID: 'twa_user_id',
+  USER_PHONE: 'twa_user_phone',
   USER_EMAIL: 'twa_user_email',
+  USER_COUNTRY: 'twa_country_code',
+  DEVICE_ID: 'twa_device_id',
 } as const;
 
-export async function storeUserContext(userId: string, phone?: string, email?: string): Promise<void> {
+export async function storeUserContext(userId: string, phone?: string, email?: string, countryCode?: string): Promise<void> {
   try {
     if (userId) await SecureStore.setItemAsync(STORE_KEYS.USER_ID, userId);
     if (phone) await SecureStore.setItemAsync(STORE_KEYS.USER_PHONE, phone);
     if (email) await SecureStore.setItemAsync(STORE_KEYS.USER_EMAIL, email);
+    if (countryCode) await SecureStore.setItemAsync(STORE_KEYS.USER_COUNTRY, countryCode);
   } catch (e) {
     console.warn('[authController] Failed to store user context:', e);
   }
+}
+
+export async function getOrCreateDeviceId(): Promise<string> {
+  let devId = await SecureStore.getItemAsync(STORE_KEYS.DEVICE_ID);
+  if (!devId) {
+    devId = 'dev_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await SecureStore.setItemAsync(STORE_KEYS.DEVICE_ID, devId);
+  }
+  return devId;
 }
 
 export async function getStoredUserId(): Promise<string> {
@@ -93,6 +152,8 @@ export async function clearUserContext(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(STORE_KEYS.USER_ID);
     await SecureStore.deleteItemAsync(STORE_KEYS.USER_PHONE);
+    await SecureStore.deleteItemAsync(STORE_KEYS.USER_EMAIL);
+    await SecureStore.deleteItemAsync(STORE_KEYS.USER_COUNTRY);
   } catch {}
 }
 
@@ -117,7 +178,21 @@ function mockDelay(ms: number = 1500): Promise<void> {
 export async function register(payload: RegisterPayload): Promise<RegisterResponse> {
   const data = await apiCall<any>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      full_name: payload.fullName,
+      email: payload.email,
+      phone: payload.phone,
+      password: payload.password,
+      country_code: payload.countryCode,
+      device_id: payload.deviceId,
+      device_fingerprint: payload.deviceFingerprint,
+      device_name: payload.deviceName,
+      os_name: payload.osName,
+      os_version: payload.osVersion,
+      referral_code: payload.referralCode,
+      street_address: payload.streetAddress,
+      city: payload.city,
+    }),
   });
   
   const userId = data.userId || data.user_id;
@@ -166,10 +241,10 @@ export async function verifyOTP(payload: OTPVerifyPayload): Promise<{ success: b
   try {
     const data = await apiCall<any>('/auth/verify-otp', {
       method: 'POST',
-      body: JSON.stringify({ userId, otp: payload.otp }),
+      body: JSON.stringify({ user_id: userId, otp: payload.otp }),
     });
 
-    await setAuthToken(data.accessToken || data.access_token);
+    await setAuthToken(data.access_token);
     // Re-persist userId for downstream screens
     await storeUserContext(userId);
     return { success: true, message: 'OTP verified' };
@@ -215,12 +290,12 @@ export async function createPIN(payload: PINPayload): Promise<{ success: boolean
 /**
  * POST /auth/enroll-biometric — Register biometric auth for user
  */
-export async function enrollBiometric(userId: string, deviceId: string, biometricType: 'face' | 'fingerprint'): Promise<{ success: boolean; biometricSecret?: string }> {
-  const res = await apiCall<{success: boolean; biometric_secret?: string}>('/auth/enroll-biometric', {
+export async function enrollBiometric(deviceId: string, biometricType: 'face' | 'fingerprint'): Promise<{ success: boolean; biometric_secret?: string }> {
+  const res = await apiCall<{success: boolean; biometric_secret?: string; message?: string}>('/auth/enroll-biometric', {
     method: 'POST',
-    body: JSON.stringify({ userId, deviceId, biometricType }),
+    body: JSON.stringify({ device_id: deviceId, biometric_type: biometricType }),
   });
-  return { success: res.success, biometricSecret: res.biometric_secret };
+  return { success: res.success, biometric_secret: res.biometric_secret };
 }
 
 /**
@@ -229,7 +304,7 @@ export async function enrollBiometric(userId: string, deviceId: string, biometri
 export async function getBiometricChallenge(email: string, deviceId: string): Promise<string> {
   const res = await apiCall<{challenge: string}>('/auth/biometric-challenge', {
     method: 'POST',
-    body: JSON.stringify({ email, deviceId }),
+    body: JSON.stringify({ email, device_id: deviceId }),
   });
   return res.challenge;
 }
@@ -240,7 +315,7 @@ export async function getBiometricChallenge(email: string, deviceId: string): Pr
 export async function biometricLogin(email: string, deviceId: string, nonce: string, signature: string): Promise<{ success: boolean; token: string; userId: string; requiresOTP: boolean }> {
   const data = await apiCall<{success: boolean; access_token: string; user_id: string; requires_otp: boolean;}>('/auth/biometric-login', {
     method: 'POST',
-    body: JSON.stringify({ email, deviceId, nonce, signature }),
+    body: JSON.stringify({ email, device_id: deviceId, nonce, signature }),
   });
   
   await setAuthToken(data.access_token);
@@ -280,17 +355,17 @@ export async function login(
     body: JSON.stringify({ 
       email, 
       password, 
-      deviceId,
-      deviceFingerprint,
-      deviceName,
-      osName,
-      osVersion
+      device_id: deviceId,
+      device_fingerprint: deviceFingerprint,
+      device_name: deviceName,
+      os_name: osName,
+      os_version: osVersion
     }),
   });
   
-  const accessToken = data.access_token || data.accessToken || '';
-  const userId = data.user_id || data.userId || '';
-  const requiresOTP = data.requires_otp ?? data.requiresOtp ?? false;
+  const accessToken = data.access_token || '';
+  const userId = data.user_id || '';
+  const requiresOTP = data.requires_otp ?? false;
 
   // Save JWT internally
   if (accessToken) {
@@ -385,4 +460,58 @@ export async function resetPassword(reset_token: string, newPassword: string): P
     await mockDelay(1500);
     return { success: true, message: 'Password reset successful' };
   }
+}
+
+/**
+ * GET /auth/me — Retrieve the complete context of the current authenticated user profile
+ */
+export async function getUserProfile(): Promise<UserProfileResponse> {
+  const profile = await apiCall<UserProfileResponse>(`/auth/me?_t=${Date.now()}`, {
+    method: 'GET',
+  });
+  // Auto-sync into secure store for other screens like OTP verify to use
+  if (profile) {
+    await storeUserContext(profile.id, profile.phone, profile.email, profile.country_code);
+  }
+  return profile;
+}
+
+/**
+ * PUT /auth/me — Update the current user's profile
+ */
+export async function updateProfile(payload: UpdateProfilePayload): Promise<UserProfileResponse> {
+  const mappedPayload: any = {};
+  if (payload.fullName !== undefined) mappedPayload.full_name = payload.fullName;
+  if (payload.phone !== undefined) mappedPayload.phone = payload.phone;
+  if (payload.streetAddress !== undefined) mappedPayload.street_address = payload.streetAddress;
+  if (payload.city !== undefined) mappedPayload.city = payload.city;
+  if (payload.stateProvince !== undefined) mappedPayload.state_province = payload.stateProvince;
+  if (payload.postalCode !== undefined) mappedPayload.postal_code = payload.postalCode;
+  if (payload.prefPush !== undefined) mappedPayload.pref_push = payload.prefPush;
+  if (payload.prefEmail !== undefined) mappedPayload.pref_email = payload.prefEmail;
+  if (payload.prefSms !== undefined) mappedPayload.pref_sms = payload.prefSms;
+  if (payload.biometric_enrolled !== undefined) mappedPayload.biometric_enrolled = payload.biometric_enrolled;
+
+  return await apiCall<UserProfileResponse>('/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify(mappedPayload),
+  });
+}
+
+/**
+ * GET /auth/sessions — List active device sessions
+ */
+export async function getSessions(): Promise<SessionInfo[]> {
+  return await apiCall<SessionInfo[]>('/auth/sessions', {
+    method: 'GET',
+  });
+}
+
+/**
+ * DELETE /auth/sessions/:id — Revoke a device session
+ */
+export async function revokeSession(sessionId: string): Promise<{ success: boolean }> {
+  return await apiCall(`/auth/sessions/${sessionId}`, {
+    method: 'DELETE',
+  });
 }

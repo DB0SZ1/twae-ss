@@ -5,47 +5,48 @@ import { apiClient } from '../utils/apiClient';
 
 export interface TopMover {
   symbol: string;
-  changePercent: number;
+  change_percent: number;
 }
 
 export interface DashboardResponse {
-  liveWealthAccrued: number;
-  projected40YearValue: number;
-  ytdContribution: number;
-  liabilityCapturePercent: number;
-  safetyGovernorStatus: 'green' | 'yellow' | 'red';
-  topMovers: TopMover[];
-  hardRailEnabled: boolean;
-  ngnBalance: number;
-  usdBalance: number;
-  unreadNotifications: number;
-  greetingName: string;
+  live_wealth_accrued: number;
+  projected_40_year_value: number;
+  ytd_contribution: number;
+  liability_capture_percent: number;
+  top_movers: TopMover[];
+  ngn_balance: number;
+  usd_balance: number;
+  unread_notifications: number;
+  greeting_name: string;
+  email: string;
+  full_name: string;
+  tier: string;
 }
 
 export interface PocketResponse {
   id: string;
   name: string;
-  targetAmount: number;
-  currentAmount: number;
+  target_amount: number;
+  current_amount: number;
   currency: string;
-  autoSaveEnabled: boolean;
-  progressPercentage: number;
+  auto_save_enabled: boolean;
+  progress_percentage: number;
   color?: string;
 }
 
 export interface PocketListResponse {
   pockets: PocketResponse[];
-  totalBalanceNgn: number;
-  totalBalanceUsd: number;
+  total_balance_ngn: number;
+  total_balance_usd: number;
 }
 
 export interface PortfolioResponse {
   holdings: any[];
-  totalValueUsd: number;
-  totalInvestedUsd: number;
-  totalUnrealizedPnlUsd: number;
-  totalPnlPercentage: number;
-  dailyPnlUsd: number;
+  total_value_usd: number;
+  total_invested_usd: number;
+  total_unrealized_pnl_usd: number;
+  total_pnl_percentage: number;
+  daily_pnl_usd: number;
 }
 
 export interface TransactionResponse {
@@ -54,8 +55,8 @@ export interface TransactionResponse {
   amount: number;
   currency: 'NGN' | 'USD';
   status: string;
-  createdAt: string;
-  partnerName?: string;
+  created_at: string;
+  partner_name?: string;
   description?: string;
   category?: string;
   name?: string;
@@ -64,8 +65,8 @@ export interface TransactionResponse {
 export interface TransactionListResponse {
   transactions: TransactionResponse[];
   page: number;
-  totalPages: number;
-  totalCount: number;
+  total_pages: number;
+  total_count: number;
 }
 
 export interface DashboardAggregatedData {
@@ -79,9 +80,9 @@ export async function fetchDashboardData(): Promise<DashboardAggregatedData> {
   // We use Promise.all to drastically reduce Time-to-Interact on the Home tab
   const [dashboard, savings, portfolio, txns] = await Promise.all([
     apiClient<DashboardResponse>('/dashboard'),
-    apiClient<PocketListResponse>('/savings/plans').catch(() => ({ pockets: [], totalBalanceNgn: 0, totalBalanceUsd: 0 })),
-    apiClient<PortfolioResponse>('/investment/portfolio').catch(() => ({ holdings: [], totalValueUsd: 0, totalInvestedUsd: 0, totalUnrealizedPnlUsd: 0, totalPnlPercentage: 0, dailyPnlUsd: 0 })),
-    apiClient<TransactionListResponse>('/wallet/transactions?per_page=5').catch(() => ({ transactions: [], page: 1, totalPages: 1, totalCount: 0 }))
+    apiClient<PocketListResponse>('/savings/plans').catch(() => ({ pockets: [], total_balance_ngn: 0, total_balance_usd: 0 })),
+    apiClient<PortfolioResponse>('/investment/portfolio').catch(() => ({ holdings: [], total_value_usd: 0, total_invested_usd: 0, total_unrealized_pnl_usd: 0, total_pnl_percentage: 0, daily_pnl_usd: 0 })),
+    apiClient<TransactionListResponse>('/wallet/transactions?per_page=5').catch(() => ({ transactions: [], page: 1, total_pages: 1, total_count: 0 }))
   ]);
 
   return {

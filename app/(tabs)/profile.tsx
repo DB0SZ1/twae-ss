@@ -13,19 +13,80 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { User, CreditCard, Layers, Lock, Fingerprint, ShieldCheck, Monitor, MessageCircle, HelpCircle, Trash2, Info, ChevronRight, Palette, LogOut } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { User, CreditCard, Layers, Lock, Fingerprint, ShieldCheck, Monitor, MessageCircle, HelpCircle, Trash2, Info, ChevronRight, Palette, LogOut, TrendingUp } from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Fonts, FontSizes, Radii, Shadows, Spacing } from '../../constants/theme';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { useTheme } from '../../contexts/ThemeContext';
-import { currentUser, portfolioTotal } from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshControl } from 'react-native';
+import { fetchDashboardData, DashboardAggregatedData } from '../../controllers/dashboardController';
+import { getUserProfile, UserProfileResponse } from '../../controllers/authController';
+
+type SettingsGroup = {
+  title: string;
+  items: {
+    Icon: any;
+    label: string;
+    sub: string;
+    color: string;
+    bg: string;
+    border: string;
+    route?: string;
+    toggle?: boolean;
+  }[];
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { abbreviate } = useCurrency();
   const C = useThemeColors();
   const { mode } = useTheme();
+
+  const [bioEnabled, setBioEnabled] = useState(true);
+  const [data, setData] = useState<DashboardAggregatedData | null>(null);
+  const [profile, setProfile] = useState<UserProfileResponse | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const loadData = async () => {
+    try {
+      const [dashResp, profResp] = await Promise.all([
+        fetchDashboardData().catch(() => null),
+        getUserProfile().catch(() => null)
+      ]);
+      if (dashResp) setData(dashResp);
+      if (profResp) {
+        setProfile(profResp);
+        setBioEnabled(profResp.biometric_enrolled);
+      }
+    } catch (e) {
+      console.warn('Profile fetch failed', e);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleBioToggle = () => {
+    if (!profile?.biometric_enrolled) {
+      Alert.alert('Enable Biometrics', 'You have not enrolled any biometrics yet. Visit Settings > Security to configure Face ID or Fingerprint.', [
+        { text: 'Later', style: 'cancel' },
+        { text: 'Set Up', onPress: () => router.push('/(settings)/security') }
+      ]);
+      return;
+    }
+    setBioEnabled(prev => !prev);
+  }
 
   const doLogout = () => {
     Alert.alert('Log out?', 'You will be signed out of your account on this device.', [
@@ -36,23 +97,27 @@ export default function ProfileScreen() {
 
   const modeLabel = mode === 'auto' ? 'System' : mode === 'dark' ? 'Dark' : 'Light';
 
-  const settingsGroups = [
+  const bankLabel = profile?.bank_link_status !== 'none' ? 'Manage accounts' : 'No banks linked';
+  const profileIncomplete = profile && (!profile.is_phone_verified || profile.kyc_status === 'none' || profile.kyc_status === 'pending' || !profile.biometric_enrolled);
+  const isVerified = profile?.kyc_status === 'verified';
+
+  const settingsGroups: SettingsGroup[] = [
     {
       title: 'Account',
       items: [
-        { Icon: User, label: 'Personal Info', sub: 'Name, DOB, address', color: C.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/personal-info' },
-        { Icon: CreditCard, label: 'Linked Banks', sub: 'GTBank · 2 accounts', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)' },
-        { Icon: Layers, label: 'Limits & Tiers', sub: 'Tier 3 · ₦10M daily limit', color: C.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)' },
+        { Icon: User, label: 'Personal Info', sub: 'Name, phone, address', color: C.gsheen, bg: 'rgba(50,100,209,.06)', border: 'rgba(50,100,209,.1)', route: '/(settings)/personal-info' },
+        { Icon: CreditCard, label: 'Linked Banks', sub: bankLabel, color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', route: '/(settings)/bank-accounts' },
+        { Icon: TrendingUp, label: 'Investment Setup', sub: 'Risk profile & asset preferences', color: C.greenBright, bg: 'rgba(74,222,128,.06)', border: 'rgba(74,222,128,.1)', route: '/(settings)/investment-setup' },
         { Icon: Palette, label: 'Appearance', sub: `Theme: ${modeLabel}`, color: C.g3, bg: 'rgba(74,122,255,.06)', border: 'rgba(74,122,255,.1)', route: '/(settings)/appearance' },
+        ...(profileIncomplete ? [{ Icon: ShieldCheck, label: 'Complete My Profile', sub: 'Finish onboarding steps', color: C.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(onboarding)/otp-verify' }] : []),
       ],
     },
     {
       title: 'Security',
       items: [
-        { Icon: Lock, label: 'Change PIN', sub: 'Last changed 30 days ago', color: C.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/change-pin' },
-        { Icon: Fingerprint, label: 'Biometrics', sub: 'Face ID · Enabled', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', toggle: true },
-        { Icon: ShieldCheck, label: '2FA Authentication', sub: 'Authenticator app · On', color: C.greenBright, bg: 'rgba(74,222,128,.06)', border: 'rgba(74,222,128,.1)', route: '/(settings)/2fa' },
-        { Icon: Monitor, label: 'Active Sessions', sub: '2 devices', color: C.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)', route: '/(settings)/active-sessions' },
+        { Icon: Lock, label: 'Change PIN', sub: 'Update transaction PIN', color: C.red, bg: 'rgba(239,68,68,.06)', border: 'rgba(239,68,68,.1)', route: '/(settings)/change-pin' },
+        { Icon: Fingerprint, label: 'Biometrics', sub: profile?.biometric_enrolled ? 'Enrolled · Enabled' : 'Not enrolled — Tap to set up', color: C.gold3, bg: 'rgba(212,160,23,.06)', border: 'rgba(212,160,23,.1)', toggle: !profile?.biometric_enrolled ? false : true, route: '/(settings)/security' },
+        { Icon: Monitor, label: 'Active Sessions', sub: 'Manage device access', color: C.skyDark, bg: 'rgba(30,95,168,.06)', border: 'rgba(30,95,168,.1)', route: '/(settings)/active-sessions' },
       ],
     },
     {
@@ -81,14 +146,14 @@ export default function ProfileScreen() {
 
         <View style={styles.profileRow}>
           <LinearGradient colors={[C.gold2, C.goldsheen]} style={styles.avatar}>
-            <Text style={[styles.avatarText, { color: C.g1 }]}>{currentUser.initials}</Text>
+            <Text style={[styles.avatarText, { color: C.g1 }]}>{profile?.full_name ? profile.full_name.charAt(0).toUpperCase() : (data?.dashboard?.greetingName ? data.dashboard.greetingName.charAt(0).toUpperCase() : 'U')}</Text>
           </LinearGradient>
           <View>
-            <Text style={styles.name}>{currentUser.fullName}</Text>
-            <Text style={styles.email}>{currentUser.email}</Text>
-            <View style={[styles.tierPill, { backgroundColor: C.gold2 }]}>
-              <ShieldCheck size={12} color="#000" strokeWidth={2} />
-              <Text style={styles.tierText}>{currentUser.tierLabel}</Text>
+            <Text style={styles.name}>{profile?.full_name || data?.dashboard?.fullName || 'User'}</Text>
+            <Text style={styles.email}>{profile?.email || data?.dashboard?.email || 'Loading...'}</Text>
+            <View style={[styles.tierPill, { backgroundColor: isVerified ? '#22c55e' : C.gold2 }]}>
+              <ShieldCheck size={12} color={isVerified ? '#fff' : '#000'} strokeWidth={2} />
+              <Text style={[styles.tierText, isVerified && { color: '#fff' }]}>{isVerified ? 'Verified' : 'Unverified'}</Text>
             </View>
           </View>
         </View>
@@ -96,15 +161,15 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>{abbreviate(portfolioTotal, 'NGN')}</Text>
+            <Text style={styles.statVal}>{abbreviate(data?.portfolio?.totalValueUsd || 0, 'USD')}</Text>
             <Text style={styles.statLabel}>NET WORTH</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>5</Text>
+            <Text style={styles.statVal}>{data?.portfolio?.holdings?.length || 0}</Text>
             <Text style={styles.statLabel}>HOLDINGS</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statVal}>3</Text>
+            <Text style={styles.statVal}>{data?.savings?.pockets?.length || 0}</Text>
             <Text style={styles.statLabel}>POCKETS</Text>
           </View>
         </View>
@@ -114,7 +179,46 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.g1} />}
       >
+        {/* Verification Check Notice */}
+        {profile && profile.kyc_status !== 'verified' && (
+          <TouchableOpacity 
+            style={[styles.settingsCard, { backgroundColor: C.surface, borderColor: C.gold1, marginBottom: 16, borderWidth: 1 }]}
+            onPress={() => router.push('/(onboarding)/kyc-identity')}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(212,160,23,.1)', borderColor: 'rgba(212,160,23,.2)' }]}>
+                <Info size={16} color={C.gold2} strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 15, color: C.text }}>Complete My Profile</Text>
+                <Text style={{ fontFamily: Fonts.bodyRegular, fontSize: 13, color: C.muted, marginTop: 2 }}>Unlock transfers and higher limits.</Text>
+              </View>
+              <ChevronRight size={16} color={C.dim} strokeWidth={2} />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Biometrics Warning Notice */}
+        {profile && !profile.biometric_enrolled && (
+          <TouchableOpacity 
+            style={[styles.settingsCard, { backgroundColor: C.surface, borderColor: '#e11d48', marginBottom: 16, borderWidth: 1 }]}
+            onPress={() => router.push('/(settings)/security')}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+              <View style={[styles.iconBox, { backgroundColor: 'rgba(225,29,72,.1)', borderColor: 'rgba(225,29,72,.2)' }]}>
+                <Fingerprint size={16} color="#e11d48" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ fontFamily: Fonts.bodySemiBold, fontSize: 15, color: '#e11d48' }}>Biometrics Not Configured</Text>
+                <Text style={{ fontFamily: Fonts.bodyRegular, fontSize: 13, color: C.muted, marginTop: 2 }}>Tap to enable Face ID or Fingerprint for enhanced security.</Text>
+              </View>
+              <ChevronRight size={16} color={C.dim} strokeWidth={2} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {settingsGroups.map(group => (
           <View key={group.title}>
             <Text style={[styles.sectionTitle, { color: C.muted }]}>{group.title}</Text>

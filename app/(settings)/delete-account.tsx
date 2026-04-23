@@ -6,8 +6,45 @@ import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useRouter } from 'expo-router';
+
 export default function DeleteAccountScreen() {
+  const router = useRouter();
   const [reason, setReason] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleDelete = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const { storage } = require('../../utils/storage');
+      const token = await storage.getItemAsync('twa_token');
+      const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/v1';
+      
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await storage.removeItemAsync('twa_token');
+        await storage.removeItemAsync('twa_user_id');
+        setLoading(false);
+        router.replace('/');
+      } else {
+        setErrorMsg(data.detail || 'Failed to delete account');
+        setLoading(false);
+      }
+    } catch {
+      setErrorMsg('Network error. Check connection string.');
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,7 +57,8 @@ export default function DeleteAccountScreen() {
 
         <AppInput label="Why are you leaving?" value={reason} onChangeText={setReason} placeholder="Optional" />
         
-        <AppButton label=" Permanently Delete Account" onPress={() => {}} variant="danger" style={{marginTop: 20}} />
+        {errorMsg ? <View style={{marginTop: 10}}><Text style={{color: Colors.red}}>{errorMsg}</Text></View> : null}
+        <AppButton label=" Permanently Delete Account" onPress={handleDelete} loading={loading} variant="danger" style={{marginTop: 20}} />
       </ScrollView>
     </View>
   );

@@ -11,6 +11,9 @@ export default function SettingsLayout() {
       <Stack.Screen name="live-chat" />
       <Stack.Screen name="faqs" />
       <Stack.Screen name="security" />
+      <Stack.Screen name="appearance" />
+      <Stack.Screen name="tickets" />
+      <Stack.Screen name="create-ticket" />
       <Stack.Screen name="bank-accounts" />
       <Stack.Screen name="limits" />
       <Stack.Screen name="help" />

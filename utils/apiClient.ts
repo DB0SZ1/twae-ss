@@ -55,19 +55,13 @@ export async function apiClient<T>(
   const token = await getAuthToken();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
     ...(options.headers || {}),
   };
 
   if (token) {
     (headers as any)['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Intercept stringified JSON to parse to snake_case automatically
-  if (options.body && typeof options.body === 'string') {
-    try {
-      const parsedBody = JSON.parse(options.body);
-      options.body = JSON.stringify(camelToSnake(parsedBody));
-    } catch {}
   }
 
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -78,13 +72,17 @@ export async function apiClient<T>(
   let data;
   try {
     data = await res.json();
-    data = snakeToCamel(data); // Auto-convert backend response to frontend standard
   } catch {
     data = {};
   }
 
   if (!res.ok) {
-    const msg = data.detail || data.message || 'An API error occurred';
+    let msg = data.detail || data.message || 'An API error occurred';
+    if (Array.isArray(msg)) {
+      msg = msg.map(m => m.msg || JSON.stringify(m)).join(', ');
+    } else if (typeof msg === 'object' && msg !== null) {
+      msg = JSON.stringify(msg);
+    }
     throw new Error(msg);
   }
 

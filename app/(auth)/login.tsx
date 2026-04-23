@@ -24,7 +24,7 @@ import Svg, { Path } from 'react-native-svg';
 import AppInput from '../../components/atoms/AppInput';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors } from '../../constants/theme';
-import { login, storeUserContext } from '../../controllers/authController';
+import { login, storeUserContext, getOrCreateDeviceId } from '../../controllers/authController';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -51,7 +51,8 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const res = await login(email, password);
+      const deviceId = await getOrCreateDeviceId();
+      const res = await login(email, password, deviceId);
       if (res.success) {
         // Save context for downstream screens
         await storeUserContext(res.userId, undefined, email);
@@ -97,16 +98,37 @@ export default function LoginScreen() {
 
       if (authResult.success) {
         // Read local user mapping
-        const savedEmail = await SecureStore.getItemAsync('twa_user_email');
+        let savedEmail = await SecureStore.getItemAsync('twa_user_email');
         if (!savedEmail || !savedEmail.trim()) {
-          Alert.alert('Setup Required', 'Please sign in with your email and password first to link this device.');
-          return;
+          // Fallback: use the email current in the input field if provided
+          if (email && email.includes('@')) {
+            savedEmail = email.trim();
+          } else {
+            Alert.alert('Setup Required', 'Please sign in with your email and password first to link this device.');
+            return;
+          }
         }
 
         setLoading(true);
         // Call the biometric login controller
-        const { biometricLogin } = require('../../controllers/authController');
-        const res = await biometricLogin(savedEmail, 'device-id-stub', 'mock-nonce', 'mock-signature');
+        const { biometricLogin, getBiometricChallenge } = require('../../controllers/authController');
+        const deviceId = await SecureStore.getItemAsync('twa_device_id');
+        const biometricSecret = await SecureStore.getItemAsync('twa_biometric_secret');
+        
+        if (!deviceId || !biometricSecret) {
+          Alert.alert('Setup Required', 'Your device is missing security keys. Please login with your password first to re-enroll.');
+          setLoading(false);
+          return;
+        }
+
+        // 1. Acquire cryptographic nonce from backend
+        const nonce = await getBiometricChallenge(savedEmail, deviceId);
+
+        // 2. Sign the nonce dynamically using our local secure secret mapping
+        const CryptoJS = require('crypto-js');
+        const signature = CryptoJS.HmacSHA256(nonce, biometricSecret).toString(CryptoJS.enc.Hex);
+
+        const res = await biometricLogin(savedEmail, deviceId, nonce, signature);
         
         if (res.success) {
           if (res.requiresOTP) {
@@ -148,7 +170,7 @@ export default function LoginScreen() {
 
           <View style={styles.header}>
             <View style={styles.logoRow}>
-              <Image source={require('../../assets/Twae-Logo.png')} style={{ width: 100, height: 32 }} resizeMode="contain" />
+              <Image source={require('../../assets/Twae-Logo.png')} style={{ width: 140, height: 44 }} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Welcome{'\n'}back.</Text>
             <Text style={styles.subtitle}>Sign in to your private account</Text>
@@ -224,7 +246,7 @@ const styles = StyleSheet.create({
   decoRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 24, paddingTop: 12 },
   decoDot: { width: 6, height: 6, borderRadius: 3 },
   header: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 32 },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 36 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 36 },
   logoGem: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   logoText: { fontFamily: 'BricolageGrotesque_600', fontSize: 20, color: Colors.text },
   title: { fontFamily: 'BricolageGrotesque_600', fontSize: 30, color: Colors.text, lineHeight: 38, marginBottom: 8 },

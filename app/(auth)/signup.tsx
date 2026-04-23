@@ -59,6 +59,8 @@ export default function SignupScreen() {
 
   const [country, setCountry] = useState(countries[0]);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [streetAddress, setStreetAddress] = useState('');
+  const [city, setCity] = useState('');
 
   // Refs for field chaining
   const emailRef = useRef<TextInput>(null);
@@ -155,6 +157,8 @@ export default function SignupScreen() {
         password,
         countryCode: country.code,
         referralCode: referralCode.trim() || undefined,
+        streetAddress: streetAddress.trim() || undefined,
+        city: city.trim() || undefined,
         deviceId: 'device-id-stub',
         deviceName: Platform.OS === 'ios' ? 'iPhone' : 'Android Device',
         osName: Platform.OS,
@@ -201,7 +205,7 @@ export default function SignupScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoRow}>
-              <Image source={require('../../assets/Twae-Logo.png')} style={{ width: 100, height: 32 }} resizeMode="contain" />
+              <Image source={require('../../assets/Twae-Logo.png')} style={{ width: 140, height: 44 }} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Create your{'\n'}account.</Text>
             <Text style={styles.subtitle}>Start building wealth today</Text>
@@ -237,6 +241,24 @@ export default function SignupScreen() {
                   <Text style={{ fontSize: 10, color: Colors.dim }}>checking…</Text>
                 ) : undefined
               }
+            />
+
+            <AppInput
+              label="Street address"
+              value={streetAddress}
+              onChangeText={setStreetAddress}
+              placeholder="123 Main St"
+              returnKeyType="next"
+              blurOnSubmit={false}
+            />
+            
+            <AppInput
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="Lagos"
+              returnKeyType="next"
+              blurOnSubmit={false}
             />
 
             {/* Country + Phone Row */}
@@ -309,6 +331,24 @@ export default function SignupScreen() {
               blurOnSubmit={false}
               onSubmitEditing={() => referralRef.current?.focus()}
               error={errors.password2}
+            />
+
+            {/* Address (optional) */}
+            <AppInput
+              label="Street address (optional)"
+              value={streetAddress}
+              onChangeText={setStreetAddress}
+              placeholder="e.g. 12 Marina Road"
+              returnKeyType="next"
+            />
+            <AppInput
+              label="City (optional)"
+              value={city}
+              onChangeText={setCity}
+              placeholder="e.g. Lagos"
+              returnKeyType="next"
+              blurOnSubmit={false}
+              onSubmitEditing={() => referralRef.current?.focus()}
             />
 
             {/* Referral Code */}
@@ -404,7 +444,7 @@ const styles = StyleSheet.create({
   decoRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 24, paddingTop: 12 },
   decoDot: { width: 6, height: 6, borderRadius: 3 },
   header: { paddingTop: 16, paddingHorizontal: 24, paddingBottom: 20 },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 36 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 36 },
   logoGem: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   logoText: { fontFamily: 'BricolageGrotesque_600', fontSize: 20, color: Colors.text },
   title: { fontFamily: 'BricolageGrotesque_600', fontSize: 30, color: Colors.text, lineHeight: 38, marginBottom: 8 },

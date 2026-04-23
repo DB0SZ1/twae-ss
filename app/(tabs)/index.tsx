@@ -2,7 +2,7 @@
  * twae — Home / Dashboard
  * Main hub — balances, quick actions, recent activity
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,43 +17,43 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { storage as SecureStore } from '../../utils/storage';
 import TransactionRow from '../../components/molecules/TransactionRow';
 import ProfileChecklist, { ChecklistStep } from '../../components/molecules/ProfileChecklist';
 import AppButton from '../../components/atoms/AppButton';
 import { Colors, Fonts, FontSizes, Radii, Shadows, Spacing } from '../../constants/theme';
-import {
-  currentUser,
-  walletBalances,
-  portfolioTotal,
-} from '../../constants/mockData';
 import { useCurrency } from '../../hooks/useCurrency';
 import { fetchDashboardData, DashboardResponse, DashboardAggregatedData } from '../../controllers/dashboardController';
+import { getUserProfile, UserProfileResponse } from '../../controllers/authController';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 const { width } = Dimensions.get('window');
 
 const initialDashData: DashboardAggregatedData = {
   dashboard: {
-    ngnBalance: 0,
-    usdBalance: 0,
-    unreadNotifications: 0,
-    greetingName: 'User',
-    liveWealthAccrued: 0,
-    projected40YearValue: 0,
-    ytdContribution: 0,
-    liabilityCapturePercent: 0,
-    safetyGovernorStatus: 'green',
-    topMovers: [],
-    hardRailEnabled: false,
+    ngn_balance: 0,
+    usd_balance: 0,
+    unread_notifications: 0,
+    greeting_name: 'User',
+    email: '',
+    full_name: '',
+    tier: 'Tier 1 · Unverified',
+    live_wealth_accrued: 0,
+    projected_40_year_value: 0,
+    ytd_contribution: 0,
+    liability_capture_percent: 0,
+    top_movers: [],
   },
-  savings: { pockets: [], totalBalanceNgn: 0, totalBalanceUsd: 0 },
-  portfolio: { holdings: [], totalValueUsd: 0, totalInvestedUsd: 0, totalUnrealizedPnlUsd: 0, totalPnlPercentage: 0, dailyPnlUsd: 0 },
-  transactions: { transactions: [], page: 1, totalPages: 1, totalCount: 0 },
+  savings: { pockets: [], total_balance_ngn: 0, total_balance_usd: 0 },
+  portfolio: { holdings: [], total_value_usd: 0, total_invested_usd: 0, total_unrealized_pnl_usd: 0, total_pnl_percentage: 0, daily_pnl_usd: 0 },
+  transactions: { transactions: [], page: 1, total_pages: 1, total_count: 0 },
 };
 
 export default function HomeScreen() {
   const router = useRouter();
   const { formatNGN, formatUSD, abbreviate } = useCurrency();
+  const C = useThemeColors();
   const [activeTab, setActiveTab] = useState<'stocks' | 'savings'>('stocks');
   const [balanceHidden, setBalanceHidden] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -68,6 +68,7 @@ export default function HomeScreen() {
   const [profileSteps, setProfileSteps] = useState<ChecklistStep[]>([
     { key: 'phone', label: 'Verify phone number', done: false, route: '/(onboarding)/otp-verify', icon: 'phone-portrait-outline' },
     { key: 'pin', label: 'Create transaction PIN', done: false, route: '/(onboarding)/create-pin', icon: 'keypad-outline' },
+    { key: 'biometric', label: 'Set up biometrics', done: false, route: '/(settings)/security', icon: 'finger-print' },
     { key: 'kyc', label: 'Verify your identity (KYC)', done: false, route: '/(onboarding)/kyc-identity', icon: 'shield-checkmark-outline' },
     { key: 'docs', label: 'Upload ID documents', done: false, route: '/(onboarding)/kyc-docs', icon: 'document-outline' },
     { key: 'bank', label: 'Link your bank account', done: false, route: '/(onboarding)/bank-link', icon: 'business-outline' },
@@ -75,17 +76,36 @@ export default function HomeScreen() {
   const isChecklistComplete = profileSteps.every(s => s.done);
   const [hideChecklistModal, setHideChecklistModal] = useState(false);
 
-  const ngnWallet = walletBalances[0];
-  const usdWallet = walletBalances[1];
-
-  const loadDashboard = async () => {
-    try {
-      const res = await fetchDashboardData();
-      setData(res);
-    } catch (e) {
-      console.error(e);
-    }
+  const updateChecklistFromProfile = (profile: UserProfileResponse) => {
+    setProfileSteps(prev =>
+      prev.map(step => {
+        switch (step.key) {
+          case 'phone': return { ...step, done: profile.is_phone_verified };
+          case 'pin': return { ...step, done: !!profile.has_pin };
+          case 'biometric': return { ...step, done: profile.biometric_enrolled };
+          case 'kyc': return { ...step, done: profile.kyc_status === 'verified' || profile.kyc_status === 'pending' };
+          case 'docs': return { ...step, done: profile.kyc_status === 'verified' };
+          case 'bank': return { ...step, done: profile.bank_link_status === 'linked' };
+          default: return step;
+        }
+      })
+    );
   };
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [res, profile] = await Promise.all([
+        fetchDashboardData(),
+        getUserProfile(),
+      ]);
+      if (res) setData(res);
+      if (profile) {
+        updateChecklistFromProfile(profile);
+      }
+    } catch (err) {
+      console.warn('Dashboard load error:', err);
+    }
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -93,8 +113,15 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      // 100ms delay to let backend transactions commit before fresh fetch
+      const t = setTimeout(() => loadDashboard(), 100);
+      return () => clearTimeout(t);
+    }, [loadDashboard])
+  );
+
   useEffect(() => {
-    loadDashboard();
     
     // --- Real-time WebSocket with exponential backoff ---
     const baseUrl = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/v1').replace(/^http/, 'ws');
@@ -103,10 +130,11 @@ export default function HomeScreen() {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let unmounted = false;
 
-    const connect = () => {
+    const connect = async () => {
       if (unmounted) return;
-      const userId = 'current_user_id';
-      const token = 'jwt_token';
+      const token = await SecureStore.getItemAsync('twa_token');
+      const userId = await SecureStore.getItemAsync('twa_user_id');
+      if (!token || !userId) return; // not logged in yet, skip WS
       ws = new WebSocket(`${baseUrl}/ws/${userId}?token=${token}`);
 
       ws.onopen = () => {
@@ -167,7 +195,7 @@ export default function HomeScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: C.bg }]}>
       <StatusBar barStyle="light-content" />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -194,11 +222,11 @@ export default function HomeScreen() {
                 colors={[Colors.gold2, Colors.goldsheen]}
                 style={styles.gpillAvatar}
               >
-                <Text style={styles.gpillInitials}>{currentUser.initials}</Text>
+                <Text style={styles.gpillInitials}>{data.dashboard.greeting_name ? data.dashboard.greeting_name.charAt(0).toUpperCase() : 'U'}</Text>
               </LinearGradient>
               <View>
                 <Text style={styles.gpillHi}>Good morning,</Text>
-                <Text style={styles.gpillName}>{currentUser.firstName} ✦</Text>
+                <Text style={styles.gpillName}>{data.dashboard.greeting_name || 'User'} ✦</Text>
               </View>
             </View>
             <TouchableOpacity
@@ -206,7 +234,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/notifications')}
             >
               <Ionicons name="notifications" size={18} color="rgba(255,255,255,.75)" />
-              {data.dashboard.unreadNotifications > 0 && <View style={styles.bellBadge} />}
+              {data.dashboard.unread_notifications > 0 && <View style={styles.bellBadge} />}
             </TouchableOpacity>
           </View>
 
@@ -214,16 +242,16 @@ export default function HomeScreen() {
           <View style={styles.portfolioArea}>
             <Text style={styles.portLabel}>TOTAL PORTFOLIO</Text>
             <Text style={styles.portVal}>
-              {balanceHidden ? '••••••••' : formatUSD(data.portfolio.totalValueUsd)}
+              {balanceHidden ? '••••••••' : formatUSD(data.portfolio.total_value_usd)}
             </Text>
-            <View style={[styles.portBadge, data.portfolio.totalPnlPercentage < 0 && styles.portBadgeDown]}>
+            <View style={[styles.portBadge, data.portfolio.total_pnl_percentage < 0 && styles.portBadgeDown]}>
               <Ionicons
-                name={data.portfolio.totalPnlPercentage >= 0 ? 'trending-up' : 'trending-down'}
+                name={data.portfolio.total_pnl_percentage >= 0 ? 'trending-up' : 'trending-down'}
                 size={12}
-                color={data.portfolio.totalPnlPercentage >= 0 ? Colors.greenBright : Colors.red}
+                color={data.portfolio.total_pnl_percentage >= 0 ? Colors.greenBright : Colors.red}
               />
-              <Text style={[styles.portBadgeText, data.portfolio.totalPnlPercentage < 0 && { color: Colors.red }]}>
-                {data.portfolio.totalPnlPercentage >= 0 ? '+' : ''}{data.portfolio.totalPnlPercentage}% today
+              <Text style={[styles.portBadgeText, data.portfolio.total_pnl_percentage < 0 && { color: Colors.red }]}>
+                {data.portfolio.total_pnl_percentage >= 0 ? '+' : ''}{data.portfolio.total_pnl_percentage}% today
               </Text>
             </View>
           </View>
@@ -270,7 +298,7 @@ export default function HomeScreen() {
                 <View style={styles.cardTopRow}>
                   <View style={styles.cardFlagWrap}>
                     <Text style={styles.cardFlag}>🇳🇬</Text>
-                    <Text style={styles.cardCurrName}>{ngnWallet.label}</Text>
+                    <Text style={styles.cardCurrName}>Naira Express</Text>
                   </View>
                   <TouchableOpacity style={styles.cardEyeBtn} onPress={() => setBalanceHidden(!balanceHidden)}>
                     <Ionicons name={balanceHidden ? 'eye-off' : 'eye'} size={14} color="rgba(255,255,255,.7)" />
@@ -278,13 +306,13 @@ export default function HomeScreen() {
                 </View>
 
                 <Text style={styles.cardBalLabel}>AVAILABLE BALANCE</Text>
-                <Text style={styles.cardBal}>{balanceHidden ? '••••••••' : formatNGN(ngnWallet.amount)}</Text>
-                <Text style={styles.cardAcct}>{ngnWallet.accountNumber} · {ngnWallet.bankName}</Text>
+                <Text style={styles.cardBal}>{balanceHidden ? '••••••••' : formatNGN(data.dashboard.ngn_balance)}</Text>
+                <Text style={styles.cardAcct}>1092837482 · GTBank</Text>
 
                 <View style={styles.cardMini}>
                   <View>
                     <Text style={styles.cmLabel}>LIVE WEALTH ACCRUED</Text>
-                    <Text style={[styles.cmChange, { color: Colors.gold1 }]}>{formatNGN(data.dashboard.liveWealthAccrued)}</Text>
+                    <Text style={[styles.cmChange, { color: Colors.gold1 }]}>{formatNGN(data.dashboard.live_wealth_accrued)}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.cmLabel}>LIVE RATE</Text>
@@ -331,11 +359,11 @@ export default function HomeScreen() {
             <View style={styles.chartContainer}>
               <View style={styles.chartHdr}>
                 <View>
-                  <Text style={styles.chartName}>Dangote Cement (DANGCEM)</Text>
-                  <Text style={styles.chartPrice}>₦1,240.50</Text>
+                  <Text style={styles.chartName}>{data.dashboard.topMovers?.[0]?.symbol || 'DANGCEM'}</Text>
+                  <Text style={styles.chartPrice}>Market Leader</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.chartCh, { color: Colors.greenBright }]}>+4.28% Today</Text>
+                  <Text style={[styles.chartCh, { color: Colors.greenBright }]}>{(data.dashboard.top_movers?.[0]?.change_percent || 0) > 0 ? '+' : ''}{data.dashboard.top_movers?.[0]?.change_percent || 0}% Today</Text>
                 </View>
               </View>
               <View style={styles.chartArea}>
@@ -384,7 +412,7 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <Text style={[styles.cardBalLabel, { color: 'rgba(255,255,255,0.7)' }]}>AMOUNT SAVED</Text>
-                <Text style={styles.cardBal}>{formatNGN(data.savings.totalBalanceNgn)}</Text>
+                <Text style={styles.cardBal}>{formatNGN(data.savings.total_balance_ngn)}</Text>
               </LinearGradient>
             </View>
             <View style={styles.actionsSection}>
@@ -396,7 +424,7 @@ export default function HomeScreen() {
               </View>
               {data.savings?.pockets?.length > 0 ? (
                 data.savings.pockets.map(pocket => {
-                  const progress = pocket.currentAmount / pocket.targetAmount;
+                  const progress = pocket.current_amount / pocket.target_amount;
                   return (
                     <TouchableOpacity
                       key={pocket.id}
@@ -406,7 +434,7 @@ export default function HomeScreen() {
                     >
                       <View style={styles.pocketHeader}>
                         <Text style={styles.pocketName}>{pocket.name}</Text>
-                        <Text style={styles.pocketAmt}>{abbreviate(pocket.currentAmount, pocket.currency as 'NGN'|'USD')}</Text>
+                        <Text style={styles.pocketAmt}>{abbreviate(pocket.current_amount, pocket.currency as 'NGN'|'USD')}</Text>
                       </View>
                       <View style={styles.progressBar}>
                         <LinearGradient
@@ -416,7 +444,7 @@ export default function HomeScreen() {
                         />
                       </View>
                       <View style={styles.pocketMeta}>
-                        <Text style={styles.pocketMetaText}>{Math.round(progress * 100)}% of {abbreviate(pocket.targetAmount, pocket.currency as 'NGN'|'USD')}</Text>
+                        <Text style={styles.pocketMetaText}>{Math.round(progress * 100)}% of {abbreviate(pocket.target_amount, pocket.currency as 'NGN'|'USD')}</Text>
                       </View>
                     </TouchableOpacity>
                 );
